@@ -66,7 +66,9 @@ export const DashboardView: React.FC = () => {
                     title: session.dashboard_spec.title || 'Dashboard',
                     description: session.dashboard_spec.description,
                     vega_lite_spec: session.dashboard_spec.vega_lite_spec || {},
-                    layout_type: session.dashboard_spec.layout_type || 'vconcat',
+                    individual_specs: session.dashboard_spec.individual_specs || [],
+                    layout_config: session.dashboard_spec.layout_config || undefined,
+                    layout_type: session.dashboard_spec.layout_type || 'grid',
                     chart_count: session.dashboard_spec.chart_count || 0,
                     sql_queries: session.dashboard_spec.sql_queries || [],
                     generated_at: session.dashboard_spec.generated_at || new Date().toISOString(),
@@ -141,7 +143,7 @@ export const DashboardView: React.FC = () => {
                     </div>
                 )}
 
-                <ChartRenderer dashboard={dashboard} isLoading={isLoading} />
+                <ChartRenderer dashboard={dashboard} isLoading={isLoading} sessionId={sessionId} />
             </main>
         </div>
     );

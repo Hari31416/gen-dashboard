@@ -54,10 +54,38 @@ export const LayoutType = {
 } as const;
 export type LayoutType = typeof LayoutType[keyof typeof LayoutType];
 
+/**
+ * Position and size of a chart in react-grid-layout.
+ * Compatible with react-grid-layout's Layout type.
+ */
+export interface ChartLayoutPosition {
+    i: string;        // Chart identifier (chart_id)
+    x: number;        // Column position (0-11)
+    y: number;        // Row position (0-based)
+    w: number;        // Width in grid units (1-12)
+    h: number;        // Height in row units
+    minW?: number;    // Minimum width
+    minH?: number;    // Minimum height
+    static?: boolean; // If true, cannot be dragged/resized
+}
+
+/**
+ * Complete layout configuration for a dashboard.
+ * Compatible with react-grid-layout format.
+ */
+export interface LayoutConfig {
+    cols: number;                      // Total grid columns (default 12)
+    row_height: number;                // Height of each row in pixels
+    layout: ChartLayoutPosition[];     // Position of each chart
+    custom: boolean;                   // Whether user has customized this layout
+}
+
 export interface ComposedDashboardSpec {
     title: string;
     description?: string;
     vega_lite_spec: Record<string, any>;
+    individual_specs?: Array<Record<string, any>>; // Individual chart specs for flexible layout
+    layout_config?: LayoutConfig;                   // react-grid-layout compatible layout
     layout_type: LayoutType;
     chart_count: number;
     sql_queries: Array<Record<string, string>>; // List of {chart_id: sql}

@@ -82,12 +82,34 @@ def save_dashboard_session(
     # Upsert to handle updates
     collection.update_one(
         {"session_id": session_id},
-        {"$set": session_doc},
+        {"$set": _serialize_for_mongo(session_doc)},
         upsert=True,
     )
     
     logger.info(f"Saved dashboard session: {session_id}")
     return session_doc
+
+
+def _serialize_for_mongo(obj: Any) -> Any:
+    """
+    Recursively convert non-serializable objects for MongoDB.
+    Handles datetime.date, datetime.datetime, and other types.
+    """
+    import datetime
+    
+    if isinstance(obj, datetime.datetime):
+        return obj  # MongoDB handles datetime.datetime natively
+    elif isinstance(obj, datetime.date):
+        return obj.isoformat()  # Convert date to string
+    elif isinstance(obj, dict):
+        return {key: _serialize_for_mongo(value) for key, value in obj.items()}
+    elif isinstance(obj, list):
+        return [_serialize_for_mongo(item) for item in obj]
+    elif hasattr(obj, '__dict__'):
+        # Handle Pydantic models or other objects
+        return _serialize_for_mongo(obj.__dict__)
+    else:
+        return obj
 
 
 def get_dashboard_session(
@@ -157,6 +179,45 @@ def update_dashboard_session(
         update_doc,
     )
     
+    return result.modified_count > 0
+
+
+def update_dashboard_layout(
+    username: str,
+    session_id: str,
+    layout_config: Dict[str, Any],
+) -> bool:
+    """
+    Update only the layout configuration for a dashboard session.
+    
+    This is called when the user customizes the layout from the frontend.
+    
+    Args:
+        username: User's username
+        session_id: Session ID
+        layout_config: New layout configuration (react-grid-layout format)
+        
+    Returns:
+        True if updated, False if not found
+    """
+    collection = get_dashboard_sessions_collection(username)
+    
+    # Mark layout as custom since user modified it
+    layout_config["custom"] = True
+    
+    update_doc = {
+        "$set": {
+            "dashboard_spec.layout_config": layout_config,
+            "updated_at": datetime.utcnow(),
+        }
+    }
+    
+    result = collection.update_one(
+        {"session_id": session_id},
+        update_doc,
+    )
+    
+    logger.info(f"Updated layout for session {session_id}: modified={result.modified_count > 0}")
     return result.modified_count > 0
 
 

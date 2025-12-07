@@ -3,7 +3,8 @@ import type {
     DashboardGenerateRequest,
     DashboardRefineRequest,
     DashboardRefreshRequest,
-    DashboardResponse
+    DashboardResponse,
+    LayoutConfig
 } from '@/types/dashboard';
 
 const api = axios.create({
@@ -32,6 +33,12 @@ export const dashboardApi = {
     },
     refresh: async (request: DashboardRefreshRequest): Promise<DashboardResponse> => {
         const response = await api.post<DashboardResponse>('/dashboard/refresh', request);
+        return response.data;
+    },
+    updateLayout: async (sessionId: string, layoutConfig: LayoutConfig): Promise<{ success: boolean; message: string; session_id: string }> => {
+        const response = await api.patch(`/dashboard/sessions/${sessionId}/layout`, {
+            layout_config: layoutConfig
+        });
         return response.data;
     }
 };

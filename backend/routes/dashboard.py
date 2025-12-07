@@ -15,6 +15,7 @@ from langchain_agents.dashboard.models import (
     DashboardRefineRequest,
     DashboardRefreshRequest,
     DashboardResponse,
+    LayoutUpdateRequest,
 )
 from langchain_agents.dashboard.graph import (
     run_dashboard_generation,
@@ -24,6 +25,7 @@ from services.dashboard.session_service import (
     save_dashboard_session,
     get_dashboard_session,
     update_dashboard_session,
+    update_dashboard_layout,
     list_dashboard_sessions,
     delete_dashboard_session,
 )
@@ -110,7 +112,18 @@ async def generate_dashboard(
             logger.error(f"Failed to save dashboard session: {save_error}")
         
         # Build response
-        from langchain_agents.dashboard.models import ComposedDashboardSpec
+        from langchain_agents.dashboard.models import ComposedDashboardSpec, LayoutConfig, ChartLayoutPosition
+        
+        # Build layout_config if present
+        layout_config = None
+        if dashboard_spec.get("layout_config"):
+            lc = dashboard_spec["layout_config"]
+            layout_config = LayoutConfig(
+                cols=lc.get("cols", 12),
+                row_height=lc.get("row_height", 100),
+                layout=[ChartLayoutPosition(**pos) for pos in lc.get("layout", [])],
+                custom=lc.get("custom", False),
+            )
         
         return DashboardResponse(
             success=True,
@@ -119,7 +132,9 @@ async def generate_dashboard(
                 title=dashboard_spec.get("title", "Dashboard"),
                 description=dashboard_spec.get("description"),
                 vega_lite_spec=dashboard_spec.get("vega_lite_spec", {}),
-                layout_type=dashboard_spec.get("layout_type", "vconcat"),
+                individual_specs=dashboard_spec.get("individual_specs", []),
+                layout_config=layout_config,
+                layout_type=dashboard_spec.get("layout_type", "grid"),
                 chart_count=dashboard_spec.get("chart_count", 0),
                 sql_queries=dashboard_spec.get("sql_queries", []),
             ),
@@ -329,6 +344,19 @@ async def refresh_dashboard(
                         if "data" in chart:
                             chart["data"]["values"] = data_map[chart_id]
         
+        # Also update data in individual_specs (for flexible layout)
+        individual_specs = dashboard_spec.get("individual_specs", [])
+        for spec in individual_specs:
+            chart_id = spec.get("chart_id")
+            if chart_id and chart_id in data_map:
+                if "data" in spec:
+                    spec["data"]["values"] = data_map[chart_id]
+                else:
+                    spec["data"] = {"values": data_map[chart_id]}
+        
+        # Preserve existing layout_config
+        layout_config = dashboard_spec.get("layout_config")
+        
         # Update session with refreshed data
         update_dashboard_session(
             username=username,
@@ -336,7 +364,17 @@ async def refresh_dashboard(
             dashboard_spec=dashboard_spec,
         )
         
-        from langchain_agents.dashboard.models import ComposedDashboardSpec
+        from langchain_agents.dashboard.models import ComposedDashboardSpec, LayoutConfig, ChartLayoutPosition
+        
+        # Build layout_config if present
+        layout_config_obj = None
+        if layout_config:
+            layout_config_obj = LayoutConfig(
+                cols=layout_config.get("cols", 12),
+                row_height=layout_config.get("row_height", 100),
+                layout=[ChartLayoutPosition(**pos) for pos in layout_config.get("layout", [])],
+                custom=layout_config.get("custom", False),
+            )
         
         return DashboardResponse(
             success=True,
@@ -345,7 +383,9 @@ async def refresh_dashboard(
                 title=dashboard_spec.get("title", "Dashboard"),
                 description=dashboard_spec.get("description"),
                 vega_lite_spec=vega_lite_spec,
-                layout_type=dashboard_spec.get("layout_type", "vconcat"),
+                individual_specs=individual_specs,
+                layout_config=layout_config_obj,
+                layout_type=dashboard_spec.get("layout_type", "grid"),
                 chart_count=dashboard_spec.get("chart_count", 0),
                 sql_queries=sql_queries,
             ),
@@ -397,6 +437,61 @@ async def get_session(
             detail=f"Session {session_id} not found",
         )
     
+    # Migrate old dashboard format to new format if needed
+    dashboard_spec = session.get("dashboard_spec", {})
+    if dashboard_spec and not dashboard_spec.get("individual_specs"):
+        # Extract individual charts from vega_lite_spec if it uses concat
+        vega_spec = dashboard_spec.get("vega_lite_spec", {})
+        individual_specs = []
+        
+        # Check for vconcat, hconcat, or concat
+        charts = (vega_spec.get("vconcat") or 
+                 vega_spec.get("hconcat") or 
+                 vega_spec.get("concat") or [])
+        
+        if charts:
+            for i, chart in enumerate(charts):
+                chart_copy = {**chart}
+                chart_copy["chart_id"] = f"chart_{i+1}"
+                chart_copy["$schema"] = "https://vega.github.io/schema/vega-lite/v5.json"
+                chart_copy["width"] = "container"
+                chart_copy["height"] = "container"
+                chart_copy["autosize"] = {"type": "fit", "contains": "padding"}
+                individual_specs.append(chart_copy)
+        elif vega_spec:
+            # Single chart dashboard
+            chart_copy = {**vega_spec}
+            chart_copy["chart_id"] = "chart_1"
+            chart_copy["width"] = "container"
+            chart_copy["height"] = "container"
+            chart_copy["autosize"] = {"type": "fit", "contains": "padding"}
+            individual_specs.append(chart_copy)
+        
+        if individual_specs:
+            # Generate default layout
+            layout_positions = []
+            num_charts = len(individual_specs)
+            for i, spec in enumerate(individual_specs):
+                # Simple 2-column layout
+                layout_positions.append({
+                    "i": spec["chart_id"],
+                    "x": (i % 2) * 6,
+                    "y": (i // 2) * 3,
+                    "w": 6 if num_charts > 1 else 12,
+                    "h": 3,
+                    "minW": 3,
+                    "minH": 2,
+                })
+            
+            dashboard_spec["individual_specs"] = individual_specs
+            dashboard_spec["layout_config"] = {
+                "cols": 12,
+                "row_height": 100,
+                "layout": layout_positions,
+                "custom": False,
+            }
+            session["dashboard_spec"] = dashboard_spec
+    
     return session
 
 
@@ -415,3 +510,47 @@ async def delete_session(
         )
     
     return {"message": "Session deleted", "session_id": session_id}
+
+
+@router.patch("/sessions/{session_id}/layout")
+async def update_layout(
+    session_id: str,
+    request: LayoutUpdateRequest,
+    current_user: User = Depends(get_current_active_user),
+):
+    """
+    Update the layout configuration for a dashboard session.
+    
+    This endpoint is called when the user customizes the layout
+    by dragging/resizing charts in the frontend.
+    
+    The layout is marked as 'custom: true' to indicate user modifications.
+    """
+    username = current_user.username
+    
+    logger.info(f"Layout update request from {username} for session: {session_id}")
+    
+    # Check if session exists
+    session = get_dashboard_session(username, session_id)
+    
+    if not session:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Session {session_id} not found",
+        )
+    
+    # Update the layout
+    layout_dict = request.layout_config.model_dump()
+    updated = update_dashboard_layout(username, session_id, layout_dict)
+    
+    if not updated:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to update layout",
+        )
+    
+    return {
+        "success": True,
+        "message": "Layout updated successfully",
+        "session_id": session_id,
+    }

@@ -157,6 +157,50 @@ class LayoutType(str, Enum):
     SINGLE = "single"
 
 
+class ChartLayoutPosition(BaseModel):
+    """
+    Position and size of a chart in the react-grid-layout.
+    
+    Uses react-grid-layout coordinate system:
+    - i: unique chart identifier
+    - x, y: grid position (column, row)
+    - w, h: width and height in grid units
+    """
+    i: str = Field(..., description="Unique chart identifier (chart_id)")
+    x: int = Field(0, ge=0, description="Column position (0-indexed)")
+    y: int = Field(0, ge=0, description="Row position (0-indexed)")
+    w: int = Field(1, ge=1, le=12, description="Width in grid units (1-12)")
+    h: int = Field(1, ge=1, description="Height in grid units")
+    minW: Optional[int] = Field(1, description="Minimum width")
+    minH: Optional[int] = Field(1, description="Minimum height")
+    static: bool = Field(False, description="If true, item cannot be dragged/resized")
+
+
+class LayoutConfig(BaseModel):
+    """
+    Complete layout configuration for a dashboard.
+    Compatible with react-grid-layout format.
+    """
+    cols: int = Field(12, ge=1, le=24, description="Total grid columns (default 12 for react-grid-layout)")
+    row_height: int = Field(100, description="Height of each row in pixels")
+    layout: List[ChartLayoutPosition] = Field(default_factory=list, description="Position of each chart")
+    custom: bool = Field(False, description="Whether user has customized this layout")
+    
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "cols": 12,
+                "row_height": 100,
+                "layout": [
+                    {"i": "chart_1", "x": 0, "y": 0, "w": 4, "h": 2},
+                    {"i": "chart_2", "x": 4, "y": 0, "w": 4, "h": 2},
+                    {"i": "chart_3", "x": 8, "y": 0, "w": 4, "h": 2},
+                ],
+                "custom": False
+            }
+        }
+
+
 class ComposedDashboardSpec(BaseModel):
     """
     Output schema for Layout Agent.
@@ -166,30 +210,46 @@ class ComposedDashboardSpec(BaseModel):
     title: str = Field(..., description="Dashboard title")
     description: Optional[str] = Field(None, description="Dashboard description")
     
-    # Full Vega-Lite specification
-    vega_lite_spec: Dict[str, Any] = Field(..., description="Complete Vega-Lite JSON")
+    # Full Vega-Lite specification (for backward compatibility)
+    vega_lite_spec: Dict[str, Any] = Field(default_factory=dict, description="Complete Vega-Lite JSON")
+    
+    # NEW: Individual chart specs for flexible layout
+    individual_specs: List[Dict[str, Any]] = Field(
+        default_factory=list, 
+        description="Individual Vega-Lite specs for each chart"
+    )
+    
+    # NEW: Grid layout configuration
+    layout_config: Optional[LayoutConfig] = Field(
+        None, 
+        description="react-grid-layout compatible layout configuration"
+    )
     
     # Layout info
-    layout_type: LayoutType = Field(..., description="Layout arrangement used")
+    layout_type: LayoutType = Field(default=LayoutType.GRID, description="Layout arrangement used")
     chart_count: int = Field(..., description="Number of charts in dashboard")
     
     # Metadata for refresh/refine
-    sql_queries: List[Dict[str, str]] = Field(..., description="SQL queries by chart_id for refresh")
+    sql_queries: List[Dict[str, str]] = Field(default_factory=list, description="SQL queries by chart_id for refresh")
     
     # Timestamps
     generated_at: datetime = Field(default_factory=datetime.utcnow)
     
     def to_json(self) -> Dict[str, Any]:
         """Return the full specification as JSON-serializable dict."""
-        return {
+        result = {
             "title": self.title,
             "description": self.description,
             "vega_lite_spec": self.vega_lite_spec,
+            "individual_specs": self.individual_specs,
             "layout_type": self.layout_type.value,
             "chart_count": self.chart_count,
             "sql_queries": self.sql_queries,
             "generated_at": self.generated_at.isoformat(),
         }
+        if self.layout_config:
+            result["layout_config"] = self.layout_config.model_dump()
+        return result
 
 
 # =============================================================================
@@ -236,3 +296,8 @@ class DashboardResponse(BaseModel):
     
     # Timing
     generation_time_ms: Optional[float] = Field(None, description="Total generation time")
+
+
+class LayoutUpdateRequest(BaseModel):
+    """Request model for updating dashboard layout."""
+    layout_config: LayoutConfig = Field(..., description="New layout configuration")
