@@ -30,7 +30,7 @@ from env import LLM_MODEL
 
 logger = create_simple_logger(__name__)
 
-MAX_REACT_ITERATIONS = 5
+MAX_REACT_ITERATIONS = 3
 
 
 def convert_table_info(table_info: Dict) -> str:

@@ -80,7 +80,9 @@ async def data_agent_node(state: DashboardGraphState) -> Dict[str, Any]:
     """
     Data Agent node for dashboard generation.
     
-    Generates and executes SQL queries for each chart goal.
+    Uses ReAct-style iterative approach to generate and execute SQL queries
+    for each chart goal. This allows the agent to inspect the database
+    and correct errors.
     
     Args:
         state: Current dashboard graph state
@@ -102,7 +104,9 @@ async def data_agent_node(state: DashboardGraphState) -> Dict[str, Any]:
             "failed_stage": "data",
         }
     
-    logger.info(f"Data Agent processing {len(chart_goals)} chart goals")
+    logger.info(f"Data Agent processing {len(chart_goals)} chart goals using ReAct approach")
+    
+    MAX_ITERATIONS = 3  # ReAct iterations per chart
     
     try:
         # Get database connection
@@ -116,55 +120,20 @@ async def data_agent_node(state: DashboardGraphState) -> Dict[str, Any]:
         connection_string = build_connection_string(**db_config)
         dialect = db_config.get("db_type", "mysql").upper()
         
-        # Build context for SQL generation
-        goals_description = _format_chart_goals(chart_goals)
-        
-        context = f"""## Database Dialect
-{dialect}
-
-## Database Schema
-{db_schema}
-
-## Table Relationships
-{db_relationships}
-
-## Chart Goals to Generate SQL For
-
-{goals_description}
-
-Generate a SQL query for EACH chart goal above. Remember to:
-1. Use the correct table names from the schema
-2. Apply appropriate aggregations
-3. Include any specified filters
-4. Use LIMIT for large result sets
-5. Mark each query with `-- chart_id: <id>` comment
-"""
-        
-        system_prompt = _get_data_agent_system_prompt()
-        
-        messages = [
-            SystemMessage(content=system_prompt),
-            HumanMessage(content=context),
-        ]
-        
-        # Generate SQL queries
-        llm = get_llm(temperature=0.1)  # Very low temperature for SQL accuracy
-        response = await llm.ainvoke(messages)
-        response_text = response.content
-        
-        logger.debug(f"Data Agent response: {response_text[:500]}...")
-        
-        # Parse SQL queries
-        sql_queries = _parse_sql_queries(response_text, chart_goals)
-        
-        # Execute queries and collect results
         chart_data_results = []
         
-        for chart_id, sql_query in sql_queries.items():
-            query_start = time.time()
-            result = _execute_query_safe(connection_string, chart_id, sql_query)
-            result["execution_time_ms"] = (time.time() - query_start) * 1000
-            chart_data_results.append(result)
+        # Process each chart goal with ReAct approach
+        for goal in chart_goals:
+            chart_id = goal.get("chart_id", "chart_1")
+            chart_result = await _generate_chart_data_react(
+                goal=goal,
+                connection_string=connection_string,
+                dialect=dialect,
+                db_schema=db_schema,
+                db_relationships=db_relationships,
+                max_iterations=MAX_ITERATIONS,
+            )
+            chart_data_results.append(chart_result)
         
         total_time = (time.time() - start_time) * 1000
         
@@ -191,6 +160,153 @@ Generate a SQL query for EACH chart goal above. Remember to:
             "error": str(e),
             "failed_stage": "data",
         }
+
+
+async def _generate_chart_data_react(
+    goal: Dict[str, Any],
+    connection_string: str,
+    dialect: str,
+    db_schema: str,
+    db_relationships: str,
+    max_iterations: int = 3,
+) -> Dict[str, Any]:
+    """
+    Generate SQL and fetch data for a single chart goal using ReAct approach.
+    
+    This allows the agent to:
+    1. Generate an initial SQL query
+    2. Execute and see results/errors
+    3. Correct and retry if needed
+    """
+    chart_id = goal.get("chart_id", "chart_1")
+    title = goal.get("title", "Untitled")
+    query_start = time.time()
+    
+    result = {
+        "chart_id": chart_id,
+        "sql_query": "",
+        "data": [],
+        "columns": [],
+        "row_count": 0,
+        "error": None,
+        "execution_time_ms": None,
+    }
+    
+    system_prompt = _get_data_agent_system_prompt()
+    
+    goal_description = f"""Generate a SQL query for this chart:
+- Chart ID: {chart_id}
+- Title: {title}
+- Type: {goal.get('chart_type', 'bar')}
+- Description: {goal.get('description', '')}
+- X Field: {goal.get('x_field', 'Not specified')}
+- Y Field: {goal.get('y_field', 'Not specified')}
+- Color Field: {goal.get('color_field', 'None')}
+- Aggregation: {goal.get('aggregation', 'none')}
+- Tables: {', '.join(goal.get('tables', [])) or 'Determine from schema'}
+- Filters: {json.dumps(goal.get('filters', {})) if goal.get('filters') else 'None'}
+
+## Database Dialect
+{dialect}
+
+## Database Schema
+{db_schema}
+
+## Table Relationships
+{db_relationships}
+
+Generate a single SQL query. Wrap it in ```sql ... ```.
+Use appropriate JOINs, GROUP BY, ORDER BY as needed.
+"""
+    
+    messages = [
+        SystemMessage(content=system_prompt),
+        HumanMessage(content=goal_description),
+    ]
+    
+    llm = get_llm(temperature=0.1)
+    
+    for iteration in range(max_iterations):
+        logger.info(f"Chart {chart_id}: ReAct iteration {iteration + 1}/{max_iterations}")
+        
+        # 1. Get LLM response (SQL generation)
+        response = await llm.ainvoke(messages)
+        response_text = response.content
+        messages.append(response)
+        
+        # 2. Extract SQL
+        sql_match = re.search(r"```sql\s*([\s\S]*?)```", response_text, re.IGNORECASE)
+        if not sql_match:
+            # Try without sql tag
+            sql_match = re.search(r"```\s*(SELECT[\s\S]*?)```", response_text, re.IGNORECASE)
+        
+        if not sql_match:
+            if iteration < max_iterations - 1:
+                feedback = "No SQL query found. Please provide a SQL query wrapped in ```sql ... ```."
+                messages.append(HumanMessage(content=feedback))
+                continue
+            else:
+                result["error"] = "Failed to generate SQL query"
+                break
+        
+        sql_query = sql_match.group(1).strip()
+        # Clean up chart_id comments if present
+        sql_query = re.sub(r"--\s*chart_id:\s*\w+\s*\n?", "", sql_query).strip()
+        result["sql_query"] = sql_query
+        
+        # 3. Safety check
+        if not check_for_sql_safety(sql_query):
+            if iteration < max_iterations - 1:
+                feedback = "Unsafe SQL detected (UPDATE/DELETE/DROP/ALTER). Generate a safe SELECT query only."
+                messages.append(HumanMessage(content=feedback))
+                continue
+            else:
+                result["error"] = "Unsafe SQL query generated"
+                break
+        
+        # 4. Execute query
+        try:
+            df = run_query_and_return_df(connection_string, sql_query)
+            
+            # Convert to result format
+            data = df.to_dict(orient="records")
+            columns = df.columns.tolist()
+            
+            # Handle NaN/Inf
+            import math
+            for row in data:
+                for key, value in row.items():
+                    if isinstance(value, float) and (math.isnan(value) or math.isinf(value)):
+                        row[key] = None
+            
+            result["data"] = data
+            result["columns"] = columns
+            result["row_count"] = len(data)
+            result["execution_time_ms"] = (time.time() - query_start) * 1000
+            
+            logger.info(f"Chart {chart_id}: Query returned {len(data)} rows")
+            break  # Success!
+            
+        except Exception as e:
+            error_msg = str(e)
+            logger.warning(f"Chart {chart_id}: Query failed (iteration {iteration + 1}): {error_msg}")
+            
+            if iteration < max_iterations - 1:
+                # Provide error feedback for correction
+                feedback = f"""SQL Execution Error: {error_msg}
+
+Please fix the SQL query and try again. Common issues:
+- Column names may be wrong (check schema above)
+- Table names may be wrong
+- JOIN conditions may be incorrect
+- Syntax errors
+
+Provide the corrected query in ```sql ... ```."""
+                messages.append(HumanMessage(content=feedback))
+            else:
+                result["error"] = error_msg
+    
+    return result
 
 
 def _format_chart_goals(chart_goals: List[Dict[str, Any]]) -> str:
