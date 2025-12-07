@@ -12,6 +12,9 @@ FRONTEND_PORT = 5173
 up:
 	docker compose up -d mongodb
 
+down:
+	docker compose down
+
 help:
 	@echo "Available commands:"
 	@echo "  make setup          - Install dependencies for backend and frontend"
@@ -23,6 +26,8 @@ help:
 	@echo "  make start-frontend - Start frontend server"
 	@echo "  make stop-backend   - Stop backend server"
 	@echo "  make stop-frontend  - Stop frontend server"
+	@echo "  make up             - Start both backend and frontend"
+	@echo "  make down           - Stop both backend and frontend"
 
 logs-dir:
 	@mkdir -p $(LOGS_DIR)
