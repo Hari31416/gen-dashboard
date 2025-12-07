@@ -15,13 +15,18 @@ interface ChartRendererProps {
     isLoading: boolean;
     sessionId?: string | null;
     onLayoutChange?: (layout: LayoutConfig) => void;
+    onFilterChange?: (filters: Record<string, any>) => void;
 }
 
 /**
  * Individual chart component that renders a single Vega-Lite spec
  * Uses ResizeObserver to re-render chart when container size changes
  */
-const IndividualChart: React.FC<{ spec: Record<string, any>; chartId: string }> = ({ spec }) => {
+const IndividualChart: React.FC<{
+    spec: Record<string, any>;
+    chartId: string;
+    onFilterChange?: (filters: Record<string, any>) => void;
+}> = ({ spec, chartId, onFilterChange }) => {
     const containerRef = useRef<HTMLDivElement>(null);
     const viewRef = useRef<any>(null);
     const resizeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -32,6 +37,18 @@ const IndividualChart: React.FC<{ spec: Record<string, any>; chartId: string }> 
         // Create a clean spec without our custom properties
         const cleanSpec = { ...spec };
         delete cleanSpec.chart_id;
+
+        // Add selection for interactivity if not present
+        // This ensures the chart captures click events even if the agent didn't explicity add selection
+        if (!cleanSpec.selection && (typeof cleanSpec.mark === 'string' || (cleanSpec.mark && cleanSpec.mark.type !== 'arc'))) {
+            cleanSpec.selection = {
+                "select": {
+                    "type": "point",
+                    "on": "click",
+                    "clear": "dblclick"
+                }
+            };
+        }
 
         const renderChart = () => {
             if (!containerRef.current) return;
@@ -49,6 +66,53 @@ const IndividualChart: React.FC<{ spec: Record<string, any>; chartId: string }> 
                 renderer: 'canvas',
             }).then(result => {
                 viewRef.current = result.view;
+
+                // Add click listener if we have a callback
+                if (onFilterChange) {
+                    result.view.addEventListener('click', (event, item) => {
+                        if (item && item.datum) {
+                            // Extract meaningful data points for filtering
+                            const datum = item.datum;
+                            const filters: Record<string, any> = {};
+
+                            // Identify potential dimension fields from the spec's encoding
+                            const dimensionFields = new Set<string>();
+                            if (cleanSpec.encoding) {
+                                Object.values(cleanSpec.encoding).forEach((enc: any) => {
+                                    // Check for nominal, ordinal, or temporal types
+                                    // Also include if no type is specified but it looks like a dimension (e.g., having 'field')
+                                    if (enc.field && (
+                                        enc.type === 'nominal' ||
+                                        enc.type === 'ordinal' ||
+                                        enc.type === 'temporal' ||
+                                        !enc.type // fallback if type omitted but used as dimension
+                                    )) {
+                                        dimensionFields.add(enc.field);
+                                    }
+                                });
+                            }
+
+                            // Iterate through keys in datum
+                            Object.keys(datum).forEach(key => {
+                                // Only use keys that are:
+                                // 1. Identified as dimensions in the encoding
+                                // 2. NOT internal vega fields (starting with _)
+                                // 3. NOT objects/arrays
+                                if (!key.startsWith('_') &&
+                                    key !== 'source' &&
+                                    typeof datum[key] !== 'object' &&
+                                    dimensionFields.has(key)) {
+                                    filters[key] = datum[key];
+                                }
+                            });
+
+                            if (Object.keys(filters).length > 0) {
+                                console.log("Drill-down triggered:", filters);
+                                onFilterChange(filters);
+                            }
+                        }
+                    });
+                }
             }).catch(console.error);
         };
 
@@ -76,7 +140,7 @@ const IndividualChart: React.FC<{ spec: Record<string, any>; chartId: string }> 
                 viewRef.current.finalize();
             }
         };
-    }, [spec]);
+    }, [spec, onFilterChange]);
 
     return (
         <div
@@ -94,7 +158,8 @@ export const ChartRenderer: React.FC<ChartRendererProps> = ({
     dashboard,
     isLoading,
     sessionId,
-    onLayoutChange
+    onLayoutChange,
+    onFilterChange
 }) => {
     const containerRef = useRef<HTMLDivElement>(null);
     const [editMode, setEditMode] = useState(false);
@@ -516,7 +581,11 @@ export const ChartRenderer: React.FC<ChartRendererProps> = ({
                                             </h3>
                                         )}
                                         <div className="flex-1 overflow-hidden" style={{ minHeight: 0 }}>
-                                            <IndividualChart spec={spec} chartId={chartId} />
+                                            <IndividualChart
+                                                spec={spec}
+                                                chartId={chartId}
+                                                onFilterChange={editMode ? undefined : onFilterChange}
+                                            />
                                         </div>
                                     </div>
                                 </div>

@@ -9,6 +9,7 @@ import { SavedDashboards } from './SavedDashboards';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger, SheetDescription } from "@/components/ui/sheet";
 import { RefreshCw, History } from 'lucide-react';
+import { FilterPanel } from './FilterPanel';
 
 export const DashboardView: React.FC = () => {
     const [dashboard, setDashboard] = useState<ComposedDashboardSpec | undefined>(undefined);
@@ -17,6 +18,7 @@ export const DashboardView: React.FC = () => {
     const [error, setError] = useState<string | null>(null);
     const [selectedConnection, setSelectedConnection] = useState<string>('');
     const [historyOpen, setHistoryOpen] = useState(false);
+    const [filterState, setFilterState] = useState<Record<string, any>>({});
 
     const handleGenerate = async (prompt: string) => {
         setIsLoading(true);
@@ -56,6 +58,42 @@ export const DashboardView: React.FC = () => {
         }
     };
 
+    const handleFilterChange = async (newFilters: Record<string, any>) => {
+        setFilterState(newFilters);
+
+        if (!sessionId) return;
+
+        setIsLoading(true);
+        try {
+            // Use the refine endpoint which will now handle pure filter updates efficiently
+            const response = await dashboardApi.refine({
+                session_id: sessionId,
+                filter_state: newFilters,
+                // No new_feedback means we just want to filter existing data
+            });
+
+            if (response.success && response.dashboard) {
+                setDashboard(response.dashboard);
+            } else {
+                setError(response.error || "Failed to update filters");
+            }
+        } catch (err: any) {
+            setError(err.message || "An error occurred");
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    const handleRemoveFilter = (key: string) => {
+        const newFilters = { ...filterState };
+        delete newFilters[key];
+        handleFilterChange(newFilters);
+    };
+
+    const handleClearFilters = () => {
+        handleFilterChange({});
+    };
+
     const handleLoadSession = async (session_id: string) => {
         setIsLoading(true);
         setError(null);
@@ -75,6 +113,8 @@ export const DashboardView: React.FC = () => {
                 });
                 setSessionId(session_id);
                 setSelectedConnection(session.connection_name || '');
+                // Note: If we stored filters in session, we would load them here
+                // setFilterState(session.filters || {});
             }
         } catch (err: any) {
             setError(err.message || "Failed to load dashboard");
@@ -124,10 +164,21 @@ export const DashboardView: React.FC = () => {
                 </div>
             </header>
 
-            <section className="sticky top-4 z-50">
+            <section className="sticky top-4 z-50 space-y-4">
                 <PromptInput onSubmit={handleGenerate} isLoading={isLoading} />
+
+                {Object.keys(filterState).length > 0 && (
+                    <div className="max-w-3xl mx-auto animate-in fade-in slide-in-from-top-1">
+                        <FilterPanel
+                            filters={filterState}
+                            onRemoveFilter={handleRemoveFilter}
+                            onClearAll={handleClearFilters}
+                        />
+                    </div>
+                )}
+
                 {error && (
-                    <div className="mt-4 p-4 text-sm text-destructive bg-destructive/10 rounded-lg max-w-3xl mx-auto animate-in slide-in-from-top-2 border border-destructive/20">
+                    <div className="p-4 text-sm text-destructive bg-destructive/10 rounded-lg max-w-3xl mx-auto animate-in slide-in-from-top-2 border border-destructive/20">
                         Error: {error}
                     </div>
                 )}
@@ -143,7 +194,15 @@ export const DashboardView: React.FC = () => {
                     </div>
                 )}
 
-                <ChartRenderer dashboard={dashboard} isLoading={isLoading} sessionId={sessionId} />
+                <ChartRenderer
+                    dashboard={dashboard}
+                    isLoading={isLoading}
+                    sessionId={sessionId}
+                    onFilterChange={(newFilters) => {
+                        // Merge with existing filters
+                        handleFilterChange({ ...filterState, ...newFilters });
+                    }}
+                />
             </main>
         </div>
     );
