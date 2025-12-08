@@ -127,6 +127,7 @@ async def viz_spec_agent_node(state: DashboardGraphState) -> Dict[str, Any]:
     
     chart_goals = state.get("chart_goals", [])
     chart_data_results = state.get("chart_data_results", [])
+    session_id = state.get("session_id", "")
     
     if not chart_data_results:
         return {
@@ -137,32 +138,36 @@ async def viz_spec_agent_node(state: DashboardGraphState) -> Dict[str, Any]:
     logger.info(f"Viz Spec Agent processing {len(chart_data_results)} charts")
     
     try:
-        viz_specs = []
         llm = get_llm(temperature=0.2)
         system_prompt = _get_viz_spec_system_prompt()
         
-        # Process each chart
-        for data_result in chart_data_results:
+        # Build list of valid charts to process in parallel
+        import asyncio
+        
+        async def process_chart(data_result):
             chart_id = data_result.get("chart_id", "unknown")
             
             # Skip failed queries
             if data_result.get("error"):
                 logger.warning(f"Skipping {chart_id} due to data error: {data_result['error']}")
-                continue
+                return None
             
             # Find matching goal
             goal = next((g for g in chart_goals if g.get("chart_id") == chart_id), None)
             if not goal:
                 logger.warning(f"No goal found for {chart_id}")
-                continue
+                return None
             
-            # Generate viz spec
-            spec = await _generate_single_viz_spec(
-                llm, system_prompt, goal, data_result
+            # Generate viz spec with URL-based data loading
+            return await _generate_single_viz_spec(
+                llm, system_prompt, goal, data_result, session_id
             )
-            
-            if spec:
-                viz_specs.append(spec)
+        
+        # Run all spec generations in parallel
+        results = await asyncio.gather(*[process_chart(dr) for dr in chart_data_results])
+        
+        # Filter out None results
+        viz_specs = [spec for spec in results if spec is not None]
         
         execution_time = (time.time() - start_time) * 1000
         
@@ -192,6 +197,7 @@ async def _generate_single_viz_spec(
     system_prompt: str,
     goal: Dict[str, Any],
     data_result: Dict[str, Any],
+    session_id: str = "",
 ) -> Dict[str, Any]:
     """
     Generate a Vega-Lite spec for a single chart.
@@ -201,6 +207,7 @@ async def _generate_single_viz_spec(
         system_prompt: System prompt for viz generation
         goal: Chart goal from strategy agent
         data_result: Data from data agent
+        session_id: Session ID for URL-based data loading
         
     Returns:
         SingleVizSpec as dict, or None if failed
@@ -246,8 +253,8 @@ Generate a Vega-Lite specification for this chart.
         response = await llm.ainvoke(messages)
         response_text = response.content
         
-        # Parse the spec
-        spec = _parse_viz_spec_response(response_text, chart_id, data)
+        # Parse the spec and use URL-based data loading
+        spec = _parse_viz_spec_response(response_text, chart_id, data, goal, session_id)
         
         if spec:
             spec["title"] = title
@@ -260,8 +267,14 @@ Generate a Vega-Lite specification for this chart.
     return _generate_fallback_viz_spec(goal, data_result)
 
 
-def _parse_viz_spec_response(response_text: str, chart_id: str, data: List[Dict]) -> Dict[str, Any]:
-    """Parse Vega-Lite spec from LLM response."""
+def _parse_viz_spec_response(
+    response_text: str, 
+    chart_id: str, 
+    data: List[Dict],
+    goal: Dict[str, Any] = None,
+    session_id: str = ""
+) -> Dict[str, Any]:
+    """Parse Vega-Lite spec from LLM response and use URL-based data loading."""
     import re
     
     # Try to extract JSON from code block
@@ -286,15 +299,37 @@ def _parse_viz_spec_response(response_text: str, chart_id: str, data: List[Dict]
         if "encoding" not in spec:
             return None
         
-        # Add chart_id and data
+        # Add chart_id
         spec["chart_id"] = chart_id
-        spec["data"] = {"values": data}
+        
+        # Check if this is a geoshape (map) chart
+        mark = spec.get("mark", {})
+        mark_type = mark.get("type") if isinstance(mark, dict) else mark
+        
+        logger.info(f"Parsed viz spec for {chart_id}: mark_type={mark_type}")
+        
+        if mark_type == "geoshape":
+            # Transform to proper geoshape spec with GeoJSON
+            logger.info(f"Applying geoshape transformation for {chart_id}")
+            spec = _transform_to_geoshape_spec(spec, data, goal, chart_id, session_id)
+            logger.info(f"Geoshape spec has projection={spec.get('projection')}, transform={bool(spec.get('transform'))}")
+        else:
+            # Use URL-based data loading if session_id is available
+            if session_id:
+                # Use full backend URL for Vega to fetch data
+                from env import BACKEND_URL
+                spec["data"] = {
+                    "url": f"{BACKEND_URL}/dashboard/{session_id}/chart/{chart_id}/data"
+                }
+            else:
+                # Fallback to inline data if no session_id
+                spec["data"] = {"values": data}
         
         # Set defaults
         if "width" not in spec:
-            spec["width"] = 400
+            spec["width"] = 400 if mark_type != "geoshape" else 500
         if "height" not in spec:
-            spec["height"] = 300
+            spec["height"] = 300 if mark_type != "geoshape" else 400
         
         return spec
         
@@ -303,8 +338,115 @@ def _parse_viz_spec_response(response_text: str, chart_id: str, data: List[Dict]
         return None
 
 
+def _transform_to_geoshape_spec(
+    spec: Dict[str, Any], 
+    data: List[Dict], 
+    goal: Dict[str, Any] = None,
+    chart_id: str = "",
+    session_id: str = ""
+) -> Dict[str, Any]:
+    """
+    Transform an LLM-generated geoshape spec to include proper GeoJSON loading.
+    
+    The LLM generates the encoding but not the GeoJSON URL/transform structure.
+    This function adds the necessary data source and lookup transform.
+    """
+    from services.geojson_service import get_geojson_config
+    from env import BACKEND_URL
+    
+    goal = goal or {}
+    
+    # Get geography configuration
+    geography_level = goal.get("geography_level", "us")  # Default to US for testing
+    geography_field = goal.get("geography_field")
+    target_state = goal.get("target_state")
+    
+    geojson_config = get_geojson_config(geography_level, target_state)
+    geojson_url = geojson_config["url"]
+    feature_key = geojson_config["feature_key"]
+    
+    # Find the geography field from data if not specified
+    if not geography_field and data:
+        columns = list(data[0].keys()) if data else []
+        # Common geography field patterns
+        for pattern in ["state", "province", "territory", "district", "region", "country", "area", "location", "name"]:
+            for col in columns:
+                if pattern in col.lower():
+                    geography_field = col
+                    break
+            if geography_field:
+                break
+        if not geography_field:
+            geography_field = columns[0] if columns else "state"
+    
+    # Find the value field from encoding
+    value_field = None
+    encoding = spec.get("encoding", {})
+    if "color" in encoding:
+        value_field = encoding["color"].get("field")
+    
+    if not value_field and data:
+        # Find first numeric column
+        for key, val in data[0].items():
+            if isinstance(val, (int, float)) and key != geography_field:
+                value_field = key
+                break
+    
+    value_field = value_field or "value"
+    
+    # Build data source for lookup transform - use URL if session_id available
+    if session_id and chart_id:
+        lookup_data = {"url": f"{BACKEND_URL}/dashboard/{session_id}/chart/{chart_id}/data"}
+    else:
+        lookup_data = {"values": data}
+    
+    # Build the proper geoshape spec
+    transformed_spec = {
+        "chart_id": spec.get("chart_id", "map"),
+        "title": spec.get("title", "Map"),
+        "width": 500,
+        "height": 400,
+        "projection": spec.get("projection", {"type": "mercator"}),
+        "data": {
+            "url": geojson_url,
+            "format": {"type": "json", "property": "features"}
+        },
+        "transform": [
+            {
+                "lookup": f"properties.{feature_key}",
+                "from": {
+                    "data": lookup_data,
+                    "key": geography_field,
+                    "fields": [value_field]
+                }
+            }
+        ],
+        "mark": spec.get("mark", {"type": "geoshape", "stroke": "white", "strokeWidth": 0.5}),
+        "encoding": {
+            "color": {
+                "field": value_field,
+                "type": "quantitative",
+                "scale": {"scheme": "blues"},
+                "title": value_field.replace("_", " ").title()
+            },
+            "tooltip": [
+                {"field": f"properties.{feature_key}", "type": "nominal", "title": "Region"},
+                {"field": value_field, "type": "quantitative", "title": value_field.replace("_", " ").title()}
+            ]
+        }
+    }
+    
+    # Preserve any custom color scale from LLM
+    if "color" in encoding and "scale" in encoding["color"]:
+        transformed_spec["encoding"]["color"]["scale"] = encoding["color"]["scale"]
+    
+    return transformed_spec
+
+
 def _generate_fallback_viz_spec(goal: Dict[str, Any], data_result: Dict[str, Any]) -> Dict[str, Any]:
     """Generate a basic fallback visualization spec."""
+    from services.geojson_service import get_geojson_config
+    
     chart_id = goal.get("chart_id", "unknown")
     chart_type = goal.get("chart_type", "bar")
     title = goal.get("title", "Chart")
@@ -320,9 +462,14 @@ def _generate_fallback_viz_spec(goal: Dict[str, Any], data_result: Dict[str, Any
         "point": {"type": "point", "filled": True},
         "text": {"type": "text", "fontSize": 36, "fontWeight": "bold"},
         "rect": {"type": "rect"},
+        "geoshape": {"type": "geoshape", "stroke": "white", "strokeWidth": 0.5},
     }
     
     mark = mark_map.get(chart_type, {"type": "bar"})
+    
+    # Handle geoshape (choropleth map) specially
+    if chart_type == "geoshape":
+        return _generate_geoshape_spec(goal, data_result)
     
     # Determine encoding based on columns
     x_field = goal.get("x_field") or (columns[0] if columns else "x")
@@ -373,3 +520,90 @@ def _generate_fallback_viz_spec(goal: Dict[str, Any], data_result: Dict[str, Any
         "width": 400,
         "height": 300,
     }
+
+
+def _generate_geoshape_spec(goal: Dict[str, Any], data_result: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Generate a Vega-Lite geoshape (choropleth map) specification.
+    
+    Uses external GeoJSON with lookup transform to join data.
+    """
+    from services.geojson_service import get_geojson_config
+    
+    chart_id = goal.get("chart_id", "unknown")
+    title = goal.get("title", "Map")
+    data = data_result.get("data", [])
+    columns = data_result.get("columns", [])
+    
+    # Get geography configuration
+    geography_level = goal.get("geography_level", "country")
+    geography_field = goal.get("geography_field")
+    target_state = goal.get("target_state")
+    
+    geojson_config = get_geojson_config(geography_level, target_state)
+    geojson_url = geojson_config["url"]
+    feature_key = geojson_config["feature_key"]
+    
+    # Determine the value field (y_field typically contains the metric)
+    value_field = goal.get("y_field")
+    if not value_field:
+        # Find first numeric column
+        for col in columns:
+            if data and isinstance(data[0].get(col), (int, float)):
+                value_field = col
+                break
+        if not value_field:
+            value_field = columns[1] if len(columns) > 1 else columns[0] if columns else "value"
+    
+    # If no geography_field specified, try to detect
+    if not geography_field:
+        # Common geography field patterns
+        for pattern in ["state", "district", "region", "area", "location", "name"]:
+            for col in columns:
+                if pattern in col.lower():
+                    geography_field = col
+                    break
+            if geography_field:
+                break
+        if not geography_field:
+            geography_field = columns[0] if columns else "state"
+    
+    # Build the Vega-Lite spec with lookup transform
+    # The GeoJSON is the primary data source, and we lookup values from our data
+    spec = {
+        "chart_id": chart_id,
+        "title": title,
+        "width": 500,
+        "height": 400,
+        "projection": {"type": "mercator"},
+        "data": {
+            "url": geojson_url,
+            "format": {"type": "json", "property": "features"}
+        },
+        "transform": [
+            {
+                "lookup": f"properties.{feature_key}",
+                "from": {
+                    "data": {"values": data},
+                    "key": geography_field,
+                    "fields": [value_field]
+                }
+            }
+        ],
+        "mark": {"type": "geoshape", "stroke": "white", "strokeWidth": 0.5},
+        "encoding": {
+            "color": {
+                "field": value_field,
+                "type": "quantitative",
+                "scale": {"scheme": "blues"},
+                "title": value_field.replace("_", " ").title()
+            },
+            "tooltip": [
+                {"field": f"properties.{feature_key}", "type": "nominal", "title": "Region"},
+                {"field": value_field, "type": "quantitative", "title": value_field.replace("_", " ").title()}
+            ]
+        }
+    }
+    
+    return spec
+

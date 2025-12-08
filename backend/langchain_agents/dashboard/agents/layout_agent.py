@@ -278,8 +278,16 @@ def _prepare_individual_spec(spec: Dict[str, Any], theme: str) -> Dict[str, Any]
         "config": _get_theme_config(theme),
     }
     
+    # Preserve selection for interactivity
     if spec.get("selection"):
         individual_spec["selection"] = spec["selection"]
+    
+    # Preserve geoshape-specific fields (projection and transform are critical for maps)
+    if spec.get("projection"):
+        individual_spec["projection"] = spec["projection"]
+    
+    if spec.get("transform"):
+        individual_spec["transform"] = spec["transform"]
     
     return individual_spec
 

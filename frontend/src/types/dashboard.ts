@@ -5,7 +5,8 @@ export const ChartType = {
     PIE: "arc",
     SCATTER: "point",
     KPI: "text",
-    HEATMAP: "rect"
+    HEATMAP: "rect",
+    MAP: "geoshape"
 } as const;
 export type ChartType = typeof ChartType[keyof typeof ChartType];
 
@@ -32,6 +33,10 @@ export interface ChartGoal {
     filters?: Record<string, any>;
     tables: string[];
     priority: number;
+    // Map-specific fields
+    geography_level?: "country" | "state" | "district";
+    geography_field?: string;
+    target_state?: string;
 }
 
 export interface SingleVizSpec {

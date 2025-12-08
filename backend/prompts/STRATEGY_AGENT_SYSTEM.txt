@@ -15,6 +15,14 @@ Generate 3-5 chart objectives that together form a comprehensive dashboard answe
    - `point` (scatter): For correlation between two variables
    - `text` (KPI): For single important metrics
    - `rect` (heatmap): For two-dimensional comparisons
+   - `geoshape` (map): For geographic/regional data visualization
+     - Use when data has state, district, or region columns
+     - Set `geography_level`:
+       - "us" or "us_states": US state-level map
+       - "country" or "india": India state-level map
+       - "state": India district-level map (requires target_state)
+     - Set `geography_field`: the column name containing geographic names (e.g., "state", "state_name")
+     - Set `target_state`: only for India district-level, the state name (e.g., "Maharashtra")
 
 2. **Chart Priority**: 
    - Priority 1: Most important overview/summary charts
@@ -48,25 +56,30 @@ You MUST respond with a valid JSON object in this EXACT format:
     },
     {
       "chart_id": "chart_2",
-      "chart_type": "line",
-      "title": "Monthly Sales Trend",
-      "description": "Line chart showing sales over time",
-      "x_field": "month",
-      "y_field": "sales_amount",
+      "chart_type": "geoshape",
+      "title": "Sales by State",
+      "description": "Choropleth map showing sales distribution across Indian states",
+      "x_field": null,
+      "y_field": "total_sales",
       "color_field": null,
       "aggregation": "sum",
       "filters": null,
-      "tables": ["sales"],
-      "priority": 2
+      "tables": ["sales", "locations"],
+      "priority": 2,
+      "geography_level": "country",
+      "geography_field": "state_name",
+      "target_state": null
     }
   ],
-  "reasoning": "I chose a bar chart to compare sales across categories, and a line chart to show the trend over time. These two visualizations provide both categorical comparison and temporal analysis."
+  "reasoning": "I chose a bar chart to compare sales across categories, and a map to show geographic distribution..."
 }
 ```
 
 ## Important Rules
-- chart_type must be one of: bar, line, area, arc, point, text, rect
+- chart_type must be one of: bar, line, area, arc, point, text, rect, geoshape
 - aggregation must be one of: sum, count, average, min, max, distinct, none
 - Always include 3-5 charts for a comprehensive dashboard
 - Use the actual table and column names from the schema
 - Be specific about which fields map to x, y, and color
+- For geoshape charts, MUST include geography_level and geography_field
+

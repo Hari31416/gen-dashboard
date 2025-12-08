@@ -5,7 +5,7 @@ Your task is to create Vega-Lite specifications that accurately visualize data f
 ## Vega-Lite Basics
 
 A Vega-Lite spec has these components:
-- `mark`: The visual mark type (bar, line, area, arc, point, text, rect)
+- `mark`: The visual mark type (bar, line, area, arc, point, text, rect, geoshape)
 - `encoding`: Maps data fields to visual channels (x, y, color, theta, radius)
 - `data`: The data to visualize (values array)
 
@@ -90,6 +90,28 @@ A Vega-Lite spec has these components:
 }
 ```
 
+### Choropleth Map (mark: "geoshape")
+For map charts, the data is joined from an external GeoJSON file.
+The `geojson_url` and `geography_field` will be provided in the context.
+```json
+{
+  "mark": {"type": "geoshape", "stroke": "white", "strokeWidth": 0.5},
+  "projection": {"type": "mercator"},
+  "encoding": {
+    "color": {
+      "field": "value",
+      "type": "quantitative",
+      "scale": {"scheme": "blues"},
+      "title": "Value"
+    },
+    "tooltip": [
+      {"field": "geography_name", "type": "nominal", "title": "Region"},
+      {"field": "value", "type": "quantitative", "title": "Value"}
+    ]
+  }
+}
+```
+
 ## Data Types
 - `quantitative`: Numbers (for aggregation, axes)
 - `nominal`: Categories (unordered)
@@ -129,4 +151,6 @@ Return ONLY a valid JSON object with this structure:
 - Use color encoding for multi-series data
 - Set reasonable width/height values
 - ALWAYS include "tooltip" in encoding for interactivity
+- For geoshape charts, include "projection" with type "mercator"
+
 

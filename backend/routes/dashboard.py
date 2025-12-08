@@ -6,8 +6,9 @@ All endpoints require authentication.
 """
 
 import uuid
-from typing import Optional
+from typing import Optional, List
 from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.responses import JSONResponse
 
 from routes.auth import get_current_active_user, User
 from langchain_agents.dashboard.models import (
@@ -34,6 +35,108 @@ from utilities import create_simple_logger
 logger = create_simple_logger(__name__)
 
 router = APIRouter(prefix="/dashboard", tags=["dashboard"])
+
+
+# =============================================================================
+# Chart Data Endpoint (URL-based data loading)
+# =============================================================================
+
+@router.get("/{session_id}/chart/{chart_id}/data")
+async def get_chart_data(
+    session_id: str,
+    chart_id: str,
+):
+    """
+    Get fresh data for a specific chart by executing its stored SQL query.
+    
+    NOTE: This endpoint does not require auth token because Vega can't pass
+    headers with data fetches. The session_id (UUID) acts as an access token
+    since it's only returned to authenticated users during dashboard generation.
+    
+    Returns:
+        JSON array of data records
+    """
+    # Find the session across all users (session_id is globally unique UUID)
+    # This is a simplified approach - in production you might want to store
+    # session ownership differently
+    from pymongo import MongoClient
+    from env import MONGO_URI
+    
+    client = MongoClient(MONGO_URI)
+    
+    # Search for session across all user databases
+    session = None
+    connection_name = None
+    username = None
+    
+    for db_name in client.list_database_names():
+        if db_name.endswith("_dashboard"):
+            db = client[db_name]
+            if "sessions" in db.list_collection_names():
+                found = db.sessions.find_one({"session_id": session_id})
+                if found:
+                    session = found
+                    connection_name = found.get("connection_name")
+                    username = db_name.replace("_dashboard", "")
+                    break
+    
+    if not session:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Session {session_id} not found",
+        )
+    
+    # Find the SQL query for this chart
+    sql_queries = session.get("sql_queries", [])
+    sql_query = None
+    for q in sql_queries:
+        if q.get("chart_id") == chart_id:
+            sql_query = q.get("sql_query")
+            break
+    
+    if not sql_query:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"No SQL query found for chart {chart_id}",
+        )
+    
+    # Execute the query
+    from services.database.db_connection_service import run_query_and_return_df, build_connection_string
+    from services.database.db_config_models import get_db_config
+    
+    # Get database configuration
+    db_config = get_db_config(username, connection_name)
+    if not db_config:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Database configuration not found for {connection_name}",
+        )
+    
+    connection_string = build_connection_string(**db_config)
+    
+    try:
+        result = run_query_and_return_df(connection_string, sql_query)
+        
+        if result is None:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to execute query",
+            )
+        
+        # Convert DataFrame to list of dicts
+        data = result.to_dict(orient="records")
+        
+        # Return as JSON array (Vega expects array format)
+        return JSONResponse(content=data)
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to get chart data: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(e),
+        )
 
 
 # =============================================================================

@@ -24,6 +24,7 @@ class ChartType(str, Enum):
     SCATTER = "point"
     KPI = "text"
     HEATMAP = "rect"
+    MAP = "geoshape"  # Choropleth map using GeoJSON
 
 
 class AggregationType(str, Enum):
@@ -61,6 +62,20 @@ class ChartGoal(BaseModel):
     
     # Priority for layout
     priority: int = Field(default=1, description="Display priority (1=highest)")
+    
+    # Map-specific fields (for chart_type == "geoshape")
+    geography_level: Optional[str] = Field(
+        None, 
+        description="Geographic level: 'country' (state-level map) or 'state' (district-level map)"
+    )
+    geography_field: Optional[str] = Field(
+        None, 
+        description="Field in data that contains geographic names (e.g., 'state_name', 'district_name')"
+    )
+    target_state: Optional[str] = Field(
+        None, 
+        description="For district-level maps, the state name (e.g., 'Maharashtra')"
+    )
 
 
 class StrategyAgentOutput(BaseModel):

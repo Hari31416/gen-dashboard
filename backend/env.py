@@ -15,9 +15,12 @@ MONGO_URI = os.getenv(
     "MONGO_URI", f"mongodb://{MONGO_USER}:{MONGO_PASSWORD}@{MONGO_HOST}:{MONGO_PORT}"
 )
 
+# Backend URL for client-side data fetching (Vega charts)
+BACKEND_URL = os.getenv("BACKEND_URL", "http://localhost:8000")
+
 LOG_LEVEL = os.getenv("LOG_LEVEL", "warning").upper()
 LLM_MODEL = os.getenv("LLM_MODEL", "nvidia_nim/openai/gpt-oss-120b")
-LLM_MODEL = "cerebras/gpt-oss-120b"
+# LLM_MODEL = "cerebras/gpt-oss-120b"
 QUERY_SUGGESTION_GENERATION_MODEL = os.getenv(
     "QUERY_SUGGESTION_GENERATION_MODEL", LLM_MODEL
 )

@@ -64,12 +64,12 @@ def check_mariadb_connection() -> Tuple[bool, str]:
     try:
         # Use URI from env
         uri = MARIADB_URI
-        
+
         # Create engine and test connection
         engine = create_engine(uri)
         with engine.connect() as connection:
             connection.execute(text("SELECT 1"))
-            
+
         message = f"MariaDB connection is alive at {uri}"
         logger.info(message)
         return True, message
@@ -114,7 +114,6 @@ def main() -> int:
         "message": mariadb_message,
         "required": raise_if_mariadb_not_alive,
     }
-
 
     # Generate summary
     logger.info("=== Dependency Check Summary ===")

@@ -66,11 +66,15 @@ def save_dashboard_session(
     """
     collection = get_dashboard_sessions_collection(username)
     
+    # Strip inline data from individual_specs to reduce storage size
+    # Data will be fetched via URL endpoint instead
+    cleaned_dashboard_spec = _strip_inline_data(dashboard_spec)
+    
     session_doc = {
         "session_id": session_id,
         "user_prompt": user_prompt,
         "connection_name": connection_name,
-        "dashboard_spec": dashboard_spec,
+        "dashboard_spec": cleaned_dashboard_spec,
         "chart_goals": chart_goals,
         "sql_queries": sql_queries,
         "generation_time_ms": generation_time_ms,
@@ -88,6 +92,39 @@ def save_dashboard_session(
     
     logger.info(f"Saved dashboard session: {session_id}")
     return session_doc
+
+
+def _strip_inline_data(dashboard_spec: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Remove inline data.values from specs to reduce MongoDB storage.
+    
+    Specs will use URL-based data loading instead.
+    """
+    import copy
+    spec = copy.deepcopy(dashboard_spec)
+    
+    # Strip from individual_specs
+    for individual_spec in spec.get("individual_specs", []):
+        if "data" in individual_spec:
+            data = individual_spec["data"]
+            # Keep URL-based data references, strip only inline values
+            if isinstance(data, dict) and "values" in data and "url" not in data:
+                # If there's inline data but no URL, the spec wasn't properly using URL loading
+                # Just clear the values to save space (data fetched via endpoint anyway)
+                individual_spec["data"] = {"values": []}  # Placeholder
+            elif isinstance(data, dict) and "url" in data:
+                # URL-based - keep as is
+                pass
+    
+    # Strip from vega_lite_spec (concat charts)
+    for key in ["hconcat", "vconcat", "concat"]:
+        if key in spec.get("vega_lite_spec", {}):
+            for chart in spec["vega_lite_spec"][key]:
+                if "data" in chart and isinstance(chart["data"], dict):
+                    if "values" in chart["data"]:
+                        chart["data"]["values"] = []  # Placeholder
+    
+    return spec
 
 
 def _serialize_for_mongo(obj: Any) -> Any:

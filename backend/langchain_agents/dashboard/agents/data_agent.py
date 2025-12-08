@@ -122,10 +122,12 @@ async def data_agent_node(state: DashboardGraphState) -> Dict[str, Any]:
         
         chart_data_results = []
         
-        # Process each chart goal with ReAct approach
-        for goal in chart_goals:
+        # Process all chart goals in parallel using asyncio.gather
+        import asyncio
+        
+        async def process_chart(goal):
             chart_id = goal.get("chart_id", "chart_1")
-            chart_result = await _generate_chart_data_react(
+            return await _generate_chart_data_react(
                 goal=goal,
                 connection_string=connection_string,
                 dialect=dialect,
@@ -133,7 +135,9 @@ async def data_agent_node(state: DashboardGraphState) -> Dict[str, Any]:
                 db_relationships=db_relationships,
                 max_iterations=MAX_ITERATIONS,
             )
-            chart_data_results.append(chart_result)
+        
+        # Run all charts in parallel
+        chart_data_results = await asyncio.gather(*[process_chart(goal) for goal in chart_goals])
         
         total_time = (time.time() - start_time) * 1000
         
