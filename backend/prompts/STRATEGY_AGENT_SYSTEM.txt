@@ -78,7 +78,7 @@ You MUST respond with a valid JSON object in this EXACT format:
 ## Important Rules
 - chart_type must be one of: bar, line, area, arc, point, text, rect, geoshape
 - aggregation must be one of: sum, count, average, min, max, distinct, none
-- Always include 3-5 charts for a comprehensive dashboard
+- Always include 3-5 charts for a comprehensive dashboard, unless user specifies for less or more
 - Use the actual table and column names from the schema
 - Be specific about which fields map to x, y, and color
 - For geoshape charts, MUST include geography_level and geography_field

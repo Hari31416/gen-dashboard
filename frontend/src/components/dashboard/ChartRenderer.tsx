@@ -59,11 +59,26 @@ const IndividualChart: React.FC<{
                 viewRef.current = null;
             }
 
+            // Get auth token from localStorage for Vega data fetching
+            const token = localStorage.getItem('token');
+
+            // Configure loader with auth headers for URL-based data loading
+            const loaderOptions = token ? {
+                loader: {
+                    http: {
+                        headers: {
+                            'Authorization': `Bearer ${token}`
+                        }
+                    }
+                }
+            } : {};
+
             embed(containerRef.current, cleanSpec, {
                 mode: 'vega-lite',
                 actions: { export: true, source: false, compiled: false, editor: false },
                 theme: 'quartz',
                 renderer: 'canvas',
+                ...loaderOptions,
             }).then(result => {
                 viewRef.current = result.view;
 

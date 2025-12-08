@@ -45,46 +45,28 @@ router = APIRouter(prefix="/dashboard", tags=["dashboard"])
 async def get_chart_data(
     session_id: str,
     chart_id: str,
+    current_user: User = Depends(get_current_active_user),
 ):
     """
     Get fresh data for a specific chart by executing its stored SQL query.
     
-    NOTE: This endpoint does not require auth token because Vega can't pass
-    headers with data fetches. The session_id (UUID) acts as an access token
-    since it's only returned to authenticated users during dashboard generation.
+    This endpoint requires authentication via Bearer token.
+    The frontend configures Vega with a custom loader that includes the auth header.
     
     Returns:
         JSON array of data records
     """
-    # Find the session across all users (session_id is globally unique UUID)
-    # This is a simplified approach - in production you might want to store
-    # session ownership differently
-    from pymongo import MongoClient
-    from env import MONGO_URI
+    username = current_user.username
     
-    client = MongoClient(MONGO_URI)
-    
-    # Search for session across all user databases
-    session = None
-    connection_name = None
-    username = None
-    
-    for db_name in client.list_database_names():
-        if db_name.endswith("_dashboard"):
-            db = client[db_name]
-            if "sessions" in db.list_collection_names():
-                found = db.sessions.find_one({"session_id": session_id})
-                if found:
-                    session = found
-                    connection_name = found.get("connection_name")
-                    username = db_name.replace("_dashboard", "")
-                    break
-    
+    # Get session for this user
+    session = get_dashboard_session(username, session_id)
     if not session:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Session {session_id} not found",
         )
+    
+    connection_name = session.get("connection_name")
     
     # Find the SQL query for this chart
     sql_queries = session.get("sql_queries", [])
