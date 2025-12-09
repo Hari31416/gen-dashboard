@@ -233,30 +233,84 @@ async def run_dashboard_refresh(
     from langchain_agents.dashboard.agents.data_agent import _execute_query_safe
     from services.database.db_config_models import get_db_config
     from services.database.db_connection_service import build_connection_string
-    
+
     logger.info(f"Refreshing dashboard data for session {session_id}")
-    
+
     try:
         db_config = get_db_config(username, connection_name)
         if not db_config:
             return {"error": f"Database configuration not found for {connection_name}"}
-        
+
         connection_string = build_connection_string(**db_config)
-        
+
         # Re-execute all queries
         results = []
         for q in sql_queries:
             chart_id = q.get("chart_id")
             sql_query = q.get("sql_query")
-            
+
             result = _execute_query_safe(connection_string, chart_id, sql_query)
             results.append(result)
-        
+
         return {
             "success": True,
             "chart_data_results": results,
         }
-        
+
     except Exception as e:
         logger.exception(f"Dashboard refresh failed: {e}")
         return {"error": str(e)}
+
+
+async def run_selective_refinement(
+    session_id: str,
+    username: str,
+    connection_name: str,
+    actions: list,
+    current_dashboard: Dict[str, Any],
+    chart_goals: list,
+    sql_queries: list,
+    user_feedback: str,
+    original_prompt: str,
+) -> Dict[str, Any]:
+    """
+    Execute selective refinement based on classified actions.
+
+    Delegates to the modular refinement executor which supports:
+    - Parallel execution of independent actions (title, chart type, rerun SQL)
+    - Sequential execution of dependent actions (modify SQL, add chart, etc.)
+    - Context passing for LLM-based operations
+
+    Args:
+        session_id: Session ID
+        username: Username
+        connection_name: Database connection
+        actions: List of RefinementAction objects
+        current_dashboard: Current dashboard spec
+        chart_goals: Original chart goals
+        sql_queries: Current SQL queries
+        user_feedback: User's feedback text
+        original_prompt: Original generation prompt
+
+    Returns:
+        Updated dashboard spec and any changed data
+    """
+    from langchain_agents.dashboard.refinement.executor import (
+        execute_refinement_actions,
+    )
+
+    logger.info(
+        f"Running selective refinement with {len(actions)} actions for session {session_id}"
+    )
+
+    return await execute_refinement_actions(
+        session_id=session_id,
+        username=username,
+        connection_name=connection_name,
+        actions=actions,
+        current_dashboard=current_dashboard,
+        chart_goals=chart_goals,
+        sql_queries=sql_queries,
+        user_feedback=user_feedback,
+        original_prompt=original_prompt,
+    )

@@ -243,152 +243,135 @@ async def refine_dashboard(
     current_user: User = Depends(get_current_active_user),
 ):
     """
-    Refine an existing dashboard based on user feedback.
-    
-    Smart Refine Strategy:
-    1. If `new_feedback` is present -> Run full LLM pipeline (Strategy -> Layout)
-    2. If ONLY `filter_state` is present -> 
-       a. Retrieve previous SQL queries
-       b. Inject WHERE clauses (using subqueries)
-       c. Re-run SQL only (via refresh logic)
-       d. Update dashboard spec with new data
-       e. Return fast result (~1s)
-    
+    Smart refinement of an existing dashboard based on user feedback.
+
+    Uses Intent Classification to determine what changes are needed:
+    1. Classify user feedback into specific actions
+    2. If clarification needed, return question to user
+    3. Execute only the required pipeline stages
+    4. Return updated dashboard
+
     Requires a valid session_id from a previous generation.
     """
+    from langchain_agents.dashboard.agents.refinement_classifier import (
+        classify_refinement_intent,
+    )
+    from langchain_agents.dashboard.graph import run_selective_refinement
+    from langchain_agents.dashboard.models import (
+        RefinementActionType,
+        RefinementClarificationResponse,
+        ComposedDashboardSpec,
+        LayoutConfig,
+        ChartLayoutPosition,
+    )
+
     username = current_user.username
     session_id = request.session_id
-    
-    logger.info(f"Dashboard refinement request from {username}, session: {session_id}")
-    
+
+    logger.info(f"Smart refinement request from {username}, session: {session_id}")
+
+    # Validate feedback is provided
+    if not request.new_feedback:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Feedback is required for refinement. Use /filter endpoint for filter-only updates.",
+        )
+
     # Get existing session
     session = get_dashboard_session(username, session_id)
-    
+
     if not session:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Session {session_id} not found",
         )
-    
+
     try:
-        # 1. Full Refinement (LLM) if text feedback is provided
-        if request.new_feedback:
-            # Full refinement with LLM
-            logger.info("Executing full LLM refinement based on text feedback")
-            result = await run_dashboard_generation(
-                user_prompt=f"{session['user_prompt']}\n\nRefinement: {request.new_feedback}",
-                username=username,
-                connection_name=session["connection_name"],
-                session_id=session_id,
-                max_charts=session.get("dashboard_spec", {}).get("chart_count", 5),
-                theme=session.get("dashboard_spec", {}).get("theme", "default"),
+        current_dashboard = session.get("dashboard_spec", {})
+        chart_goals = session.get("chart_goals", [])
+        sql_queries = session.get("sql_queries", [])
+
+        # Step 1: Classify the user's intent
+        intent = await classify_refinement_intent(
+            user_feedback=request.new_feedback,
+            current_dashboard=current_dashboard,
+            chart_goals=chart_goals,
+            target_chart_hint=request.target_chart_id,
+        )
+
+        # Step 2: If clarification is needed, return the question
+        if intent.requires_clarification:
+            logger.info(f"Clarification needed: {intent.clarification_question}")
+            # Return a special response indicating clarification is needed
+            return JSONResponse(
+                status_code=200,
+                content={
+                    "success": False,
+                    "session_id": session_id,
+                    "dashboard": None,
+                    "error": None,
+                    "requires_clarification": True,
+                    "clarification_question": intent.clarification_question,
+                    "reasoning": intent.reasoning,
+                },
             )
-            
-            if result.get("error"):
-                return DashboardResponse(
-                    success=False,
-                    session_id=session_id,
-                    dashboard=None,
-                    error=result.get("error"),
+
+        # Step 3: Execute selective refinement based on classified actions
+        logger.info(f"Executing {len(intent.actions)} refinement actions")
+
+        result = await run_selective_refinement(
+            session_id=session_id,
+            username=username,
+            connection_name=session["connection_name"],
+            actions=intent.actions,
+            current_dashboard=current_dashboard,
+            chart_goals=chart_goals,
+            sql_queries=sql_queries,
+            user_feedback=request.new_feedback,
+            original_prompt=session.get("user_prompt", ""),
+        )
+
+        if result.get("error"):
+            return DashboardResponse(
+                success=False,
+                session_id=session_id,
+                dashboard=None,
+                error=result.get("error"),
+            )
+
+        dashboard_spec = result.get("dashboard_spec")
+
+        # Update session with new dashboard
+        update_dashboard_session(
+            username=username,
+            session_id=session_id,
+            dashboard_spec=(
+                dashboard_spec
+                if isinstance(dashboard_spec, dict)
+                else (
+                    dashboard_spec.model_dump()
+                    if hasattr(dashboard_spec, "model_dump")
+                    else dashboard_spec
                 )
-            
-            dashboard_spec = result.get("dashboard_spec")
-            
-            # Update session
+            ),
+            refinement_feedback=request.new_feedback,
+        )
+
+        # Also update sql_queries if they changed
+        if result.get("updated_sql_queries"):
+            session["sql_queries"] = result["updated_sql_queries"]
             update_dashboard_session(
                 username=username,
                 session_id=session_id,
-                dashboard_spec=dashboard_spec,
-                refinement_feedback=request.new_feedback,
+                dashboard_spec=session.get("dashboard_spec"),
             )
-            
-        # 2. Fast Filter Refresh (Data-only) if only filters are provided
-        elif request.filter_state is not None:
-            logger.info(f"Executing fast filter refresh with state: {request.filter_state}")
-            
-            from langchain_agents.dashboard.filter_utils import apply_filters_to_sql
-            
-            # Get original queries from session (preferred) or reconstruct from prompt
-            # We need the original BASE queries without previous filters to stack correctly?
-            # Actually, standard flow is: Base Query -> Apply Filter
-            # If we refined before, we might be filtering a filtered query. 
-            # For simplicity: We assume sql_queries in session are the "latest" base to work from.
-            # Ideally, we should store "base_sql_queries" separately from "current_sql_queries".
-            # BUT: refine() modifies the session. 
-            
-            # Strategy:
-            # If we have tracked sql_queries in session, use them.
-            # We will apply the NEW filters to these queries.
-            # NOTE: If the stored queries ALREADY have filters, adding more wraps them again.
-            # This is safe (nested subqueries), but can get deep. 
-            # Ideally we'd persist 'base_queries' separately, but for now we'll wrap what we have.
-            
-            current_queries = session.get("sql_queries", [])
-            if not current_queries:
-                 raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="No SQL queries found to filter. Try generating a new dashboard.",
-                )
-            
-            # Apply filters to each query
-            filtered_queries = []
-            for q in current_queries:
-                # q is {chart_id: "...", sql_query: "..."}
-                # Handle both dict formats just in case
-                chart_id = q.get("chart_id")
-                original_sql = q.get("sql_query")
-                
-                if chart_id and original_sql:
-                    new_sql = apply_filters_to_sql(original_sql, request.filter_state)
-                    filtered_queries.append({
-                        "chart_id": chart_id,
-                        "sql_query": new_sql
-                    })
-            
-            # Run the refresh logic with these NEW queries
-            result = await run_dashboard_refresh(
-                session_id=session_id,
-                username=username,
-                connection_name=session["connection_name"],
-                sql_queries=filtered_queries,
-            )
-            
-            if result.get("error"):
-                return DashboardResponse(
-                    success=False,
-                    session_id=session_id,
-                    dashboard=None,
-                    error=result.get("error"),
-                )
-                
-            # Construct updated dashboard spec
-            # Start with existing spec to preserve layout/titles/viz
-            existing_spec = session.get("dashboard_spec", {})
-            chart_data_results = result.get("chart_data_results", [])
-            data_map = {r["chart_id"]: r["data"] for r in chart_data_results if not r.get("error")}
-            
-            # Update data in individual_specs
-            individual_specs = existing_spec.get("individual_specs", [])
-            updated_specs = []
-            for spec in individual_specs:
-                new_spec = spec.copy() # Shallow copy
-                chart_id = new_spec.get("chart_id")
-                if chart_id in data_map:
-                    # deeply update data.values
-                    new_spec["data"] = {"values": data_map[chart_id]}
-                updated_specs.append(new_spec)
-            
-            # Update Vega-Lite spec if it exists (for legacy/concat)
-            vega_lite_spec = existing_spec.get("vega_lite_spec", {})
-            # (Simplification: assuming mostly individual_specs are used effectively by frontend now)
-            
-            # Create new ComposedDashboardSpec
-            from langchain_agents.dashboard.models import ComposedDashboardSpec, LayoutConfig, ChartLayoutPosition
-            
+
+        # Build response
+        if isinstance(dashboard_spec, dict):
             # Parse layout config
             layout_config = None
-            if existing_spec.get("layout_config"):
-                lc = existing_spec["layout_config"]
+            if dashboard_spec.get("layout_config"):
+                lc = dashboard_spec["layout_config"]
                 layout_config = LayoutConfig(
                     cols=lc.get("cols", 12),
                     row_height=lc.get("row_height", 100),
@@ -397,43 +380,16 @@ async def refine_dashboard(
                 )
 
             dashboard_spec = ComposedDashboardSpec(
-                title=existing_spec.get("title", "Dashboard"),
-                description=existing_spec.get("description"),
-                vega_lite_spec=vega_lite_spec, # We aren't updating this deeply for now, relying on individual_specs
-                individual_specs=updated_specs,
+                title=dashboard_spec.get("title", "Dashboard"),
+                description=dashboard_spec.get("description"),
+                vega_lite_spec=dashboard_spec.get("vega_lite_spec", {}),
+                individual_specs=dashboard_spec.get("individual_specs", []),
                 layout_config=layout_config,
-                layout_type=existing_spec.get("layout_type", "grid"),
-                chart_count=existing_spec.get("chart_count", 0),
-                sql_queries=current_queries, # KEEP ORIGINAL QUERIES so we don't permanently bake in filters?
-                                             # OR should we update to filtered?
-                                             # User feedback: "Drill down". Usually implies temporary view.
-                                             # If we save filtered_queries, next drill down adds MORE wrappers.
-                                             # DECISION: We do NOT save `filtered_queries` to session["sql_queries"].
-                                             # We return the filtered dashboard, but session keeps base.
-                                             # However, we DO update the dashboard_spec in session so reload shows state?
-                                             # Complex. Let's return the filtered view but NOT persist it as the "base" 
-                                             # for future refinements if possible.
-                                             # ACTUALLY, for drill-down to work recursively (drill 1 -> drill 2), 
-                                             # we normally pass the *accumulated* filter state from frontend.
-                                             # Frontend sends {region: US, category: A}.
-                                             # So we always apply to the *Base* queries?
-                                             # YES. Frontend maintains full filter state.
-                                             # So we should apply request.filter_state to session.sql_queries.
-                                             # And we should NOT save the result back to session.sql_queries.
+                layout_type=dashboard_spec.get("layout_type", "grid"),
+                chart_count=dashboard_spec.get("chart_count", 0),
+                sql_queries=result.get("updated_sql_queries", sql_queries),
             )
-            
-            # We DO NOT call update_dashboard_session here to persist the filtered SQL as the new truth.
-            # But we might want to persist the *View* state? 
-            # For this MVP, let's keep it simple: We return the filtered view. 
-            # Client has the filter state.
-            
-        else:
-            # No refinement specified
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Either new_feedback or filter_state must be provided",
-            )
-        
+
         return DashboardResponse(
             success=True,
             session_id=session_id,
@@ -441,11 +397,144 @@ async def refine_dashboard(
             error=None,
             generation_time_ms=result.get("total_time_ms", 0),
         )
-        
+
     except HTTPException:
         raise
     except Exception as e:
         logger.exception(f"Dashboard refinement failed: {e}")
+        return DashboardResponse(
+            success=False,
+            session_id=session_id,
+            dashboard=None,
+            error=str(e),
+        )
+
+
+@router.post("/filter", response_model=DashboardResponse)
+async def filter_dashboard(
+    request: "DashboardFilterRequest",
+    current_user: User = Depends(get_current_active_user),
+):
+    """
+    Apply filters to dashboard charts without LLM processing.
+
+    This is a fast endpoint (~1s) for drill-down filtering:
+    1. Retrieve stored SQL queries
+    2. Inject WHERE clauses using subqueries
+    3. Re-execute SQL to get filtered data
+    4. Return updated dashboard with filtered data
+
+    Note: Filters are NOT persisted to session. Frontend maintains filter state.
+    """
+    from langchain_agents.dashboard.filter_utils import apply_filters_to_sql
+    from langchain_agents.dashboard.models import (
+        DashboardFilterRequest,
+        ComposedDashboardSpec,
+        LayoutConfig,
+        ChartLayoutPosition,
+    )
+
+    username = current_user.username
+    session_id = request.session_id
+
+    logger.info(
+        f"Filter request from {username}, session: {session_id}, filters: {request.filter_state}"
+    )
+
+    # Get existing session
+    session = get_dashboard_session(username, session_id)
+
+    if not session:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Session {session_id} not found",
+        )
+
+    try:
+        current_queries = session.get("sql_queries", [])
+        if not current_queries:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="No SQL queries found to filter. Try generating a new dashboard.",
+            )
+
+        # Apply filters to each query
+        filtered_queries = []
+        for q in current_queries:
+            chart_id = q.get("chart_id")
+            original_sql = q.get("sql_query")
+
+            if chart_id and original_sql:
+                new_sql = apply_filters_to_sql(original_sql, request.filter_state)
+                filtered_queries.append({"chart_id": chart_id, "sql_query": new_sql})
+
+        # Run the refresh logic with filtered queries
+        result = await run_dashboard_refresh(
+            session_id=session_id,
+            username=username,
+            connection_name=session["connection_name"],
+            sql_queries=filtered_queries,
+        )
+
+        if result.get("error"):
+            return DashboardResponse(
+                success=False,
+                session_id=session_id,
+                dashboard=None,
+                error=result.get("error"),
+            )
+
+        # Construct updated dashboard spec (preserving layout/viz)
+        existing_spec = session.get("dashboard_spec", {})
+        chart_data_results = result.get("chart_data_results", [])
+        data_map = {
+            r["chart_id"]: r["data"] for r in chart_data_results if not r.get("error")
+        }
+
+        # Update data in individual_specs
+        individual_specs = existing_spec.get("individual_specs", [])
+        updated_specs = []
+        for spec in individual_specs:
+            new_spec = spec.copy()
+            chart_id = new_spec.get("chart_id")
+            if chart_id in data_map:
+                new_spec["data"] = {"values": data_map[chart_id]}
+            updated_specs.append(new_spec)
+
+        # Parse layout config
+        layout_config = None
+        if existing_spec.get("layout_config"):
+            lc = existing_spec["layout_config"]
+            layout_config = LayoutConfig(
+                cols=lc.get("cols", 12),
+                row_height=lc.get("row_height", 100),
+                layout=[ChartLayoutPosition(**pos) for pos in lc.get("layout", [])],
+                custom=lc.get("custom", False),
+            )
+
+        dashboard_spec = ComposedDashboardSpec(
+            title=existing_spec.get("title", "Dashboard"),
+            description=existing_spec.get("description"),
+            vega_lite_spec=existing_spec.get("vega_lite_spec", {}),
+            individual_specs=updated_specs,
+            layout_config=layout_config,
+            layout_type=existing_spec.get("layout_type", "grid"),
+            chart_count=existing_spec.get("chart_count", 0),
+            sql_queries=current_queries,  # Keep original queries (filters not persisted)
+        )
+
+        return DashboardResponse(
+            success=True,
+            session_id=session_id,
+            dashboard=dashboard_spec,
+            error=None,
+            generation_time_ms=result.get("total_time_ms", 0),
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception(f"Dashboard filtering failed: {e}")
         return DashboardResponse(
             success=False,
             session_id=session_id,
