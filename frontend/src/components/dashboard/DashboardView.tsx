@@ -6,6 +6,7 @@ import { ChartRenderer } from './ChartRenderer';
 import { DatabaseSelector } from './DatabaseSelector';
 import { DebugLogin } from './DebugLogin';
 import { SavedDashboards } from './SavedDashboards';
+import { ClarificationDialog } from './ClarificationDialog';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger, SheetDescription } from "@/components/ui/sheet";
 import { History } from 'lucide-react';
@@ -19,6 +20,9 @@ export const DashboardView: React.FC = () => {
     const [selectedConnection, setSelectedConnection] = useState<string>('');
     const [historyOpen, setHistoryOpen] = useState(false);
     const [filterState, setFilterState] = useState<Record<string, any>>({});
+    // Clarification dialog state
+    const [clarificationOpen, setClarificationOpen] = useState(false);
+    const [clarificationQuestion, setClarificationQuestion] = useState('');
 
     const handleGenerate = async (prompt: string) => {
         setIsLoading(true);
@@ -65,11 +69,10 @@ export const DashboardView: React.FC = () => {
 
         setIsLoading(true);
         try {
-            // Use the refine endpoint which will now handle pure filter updates efficiently
-            const response = await dashboardApi.refine({
+            // Use the dedicated filter endpoint for fast filter-only updates
+            const response = await dashboardApi.filter({
                 session_id: sessionId,
                 filter_state: newFilters,
-                // No new_feedback means we just want to filter existing data
             });
 
             if (response.success && response.dashboard) {
@@ -82,6 +85,42 @@ export const DashboardView: React.FC = () => {
         } finally {
             setIsLoading(false);
         }
+    };
+
+    // Handle refine with clarification support
+    const handleRefine = async (feedback: string) => {
+        if (!sessionId) return;
+
+        setIsLoading(true);
+        setError(null);
+        try {
+            const response = await dashboardApi.refine({
+                session_id: sessionId,
+                new_feedback: feedback,
+            });
+
+            // Check if clarification is needed
+            if (response.requires_clarification && response.clarification_question) {
+                setClarificationQuestion(response.clarification_question);
+                setClarificationOpen(true);
+                return;
+            }
+
+            if (response.success && response.dashboard) {
+                setDashboard(response.dashboard);
+            } else {
+                setError(response.error || "Failed to refine dashboard");
+            }
+        } catch (err: any) {
+            setError(err.message || "An error occurred");
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    const handleClarificationSubmit = (clarifiedFeedback: string) => {
+        setClarificationOpen(false);
+        handleRefine(clarifiedFeedback);
     };
 
     const handleRemoveFilter = (key: string) => {
@@ -165,7 +204,7 @@ export const DashboardView: React.FC = () => {
             </header>
 
             <section className="space-y-4">
-                <PromptInput onSubmit={handleGenerate} isLoading={isLoading} />
+                <PromptInput onSubmit={sessionId ? handleRefine : handleGenerate} isLoading={isLoading} />
 
                 {Object.keys(filterState).length > 0 && (
                     <div className="max-w-3xl mx-auto animate-in fade-in slide-in-from-top-1">
@@ -196,6 +235,13 @@ export const DashboardView: React.FC = () => {
                     }}
                 />
             </main>
+
+            <ClarificationDialog
+                isOpen={clarificationOpen}
+                question={clarificationQuestion}
+                onSubmit={handleClarificationSubmit}
+                onClose={() => setClarificationOpen(false)}
+            />
         </div>
     );
 };

@@ -83,7 +83,7 @@ async def handle_modify_sql(
     """
     from langchain_agents.dashboard.agents.data_agent import data_agent_node
     from langchain_agents.dashboard.state import create_initial_dashboard_state
-    
+
     target_id = action.target_chart_id
 
     # Find the chart goal for context
@@ -146,6 +146,7 @@ Please generate a corrected SQL query based on the user's feedback. The previous
                     if spec.get("chart_id") == chart_id:
                         spec["data"] = {"values": result.get("data", [])}
                 logger.info(f"Modified SQL and data for {chart_id}")
+                logger.info(f"New SQL query: {result.get('sql_query')}")
 
     return {
         "sql_queries": updated_sql_queries,
@@ -159,29 +160,91 @@ async def handle_change_chart_type(
 ) -> Dict[str, Any]:
     """
     Change the chart type (bar, line, pie, etc.).
-    
+
+    Also transforms encoding as needed:
+    - bar/line/area use x/y encoding
+    - arc (pie) uses theta/color encoding
+
     Args:
         action: RefinementAction with target_chart_id and parameters.new_type
         updated_dashboard: Current dashboard spec
-        
+
     Returns:
         Dict with updated individual_specs
     """
     target_id = action.target_chart_id
     new_type = action.parameters.get("new_type", "bar")
-    
+
     for spec in updated_dashboard.get("individual_specs", []):
         if spec.get("chart_id") == target_id:
             # Get current mark info for logging
             current_mark = spec.get("mark", {})
             current_type = current_mark.get("type") if isinstance(current_mark, dict) else current_mark
-            
+
             # Update mark type
             if isinstance(spec.get("mark"), dict):
                 spec["mark"]["type"] = new_type
             else:
                 spec["mark"] = {"type": new_type}
-            
+
+            # Transform encoding if changing to/from arc (pie chart)
+            encoding = spec.get("encoding", {})
+
+            if new_type == "arc" and current_type != "arc":
+                # Changing TO pie chart: convert x/y to theta/color
+                x_field = encoding.get("x", {}).get("field")
+                y_field = encoding.get("y", {}).get("field")
+
+                # theta = numeric field (y), color = categorical field (x)
+                # They MUST be different for pie chart to show multiple colors
+                if y_field and x_field and x_field != y_field:
+                    new_encoding = {
+                        "theta": {"field": y_field, "type": "quantitative"},
+                        "color": {"field": x_field, "type": "nominal"},
+                    }
+                    # Add tooltip if available
+                    if "tooltip" in encoding:
+                        new_encoding["tooltip"] = encoding["tooltip"]
+
+                    spec["encoding"] = new_encoding
+                    logger.info(
+                        f"Transformed encoding for {target_id}: theta={y_field}, color={x_field}"
+                    )
+                elif y_field:
+                    # Fallback: only have y_field, use it for theta but need a color field
+                    logger.warning(
+                        f"Pie chart {target_id} may have single color - x_field missing or same as y_field"
+                    )
+                    new_encoding = {
+                        "theta": {"field": y_field, "type": "quantitative"},
+                        "color": {"field": x_field or y_field, "type": "nominal"},
+                    }
+                    if "tooltip" in encoding:
+                        new_encoding["tooltip"] = encoding["tooltip"]
+                    spec["encoding"] = new_encoding
+
+            elif current_type == "arc" and new_type != "arc":
+                # Changing FROM pie chart: convert theta/color to x/y
+                theta_field = encoding.get("theta", {}).get("field")
+                color_field = encoding.get("color", {}).get("field")
+
+                if theta_field or color_field:
+                    new_encoding = {
+                        "x": {"field": color_field or theta_field, "type": "nominal"},
+                        "y": {
+                            "field": theta_field or color_field,
+                            "type": "quantitative",
+                        },
+                    }
+                    # Add tooltip if available
+                    if "tooltip" in encoding:
+                        new_encoding["tooltip"] = encoding["tooltip"]
+
+                    spec["encoding"] = new_encoding
+                    logger.info(
+                        f"Transformed encoding for {target_id}: theta/color -> x/y"
+                    )
+
             logger.info(f"Changed {target_id} chart type from {current_type} to {new_type}")
             break
 

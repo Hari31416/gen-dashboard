@@ -254,19 +254,23 @@ def _merge_result(dashboard: Dict[str, Any], result: Dict[str, Any]) -> None:
     """Merge handler result into dashboard (in-place)."""
     if not result:
         return
-    
+
     # Update individual_specs if present
     if "individual_specs" in result:
         dashboard["individual_specs"] = result["individual_specs"]
-    
+
     # Update title if present
     if "title" in result:
         dashboard["title"] = result["title"]
-    
+
     # Update layout_config if present
     if "layout_config" in result:
         dashboard["layout_config"] = result["layout_config"]
-    
+
     # Update chart_count if present
     if "chart_count" in result:
         dashboard["chart_count"] = result["chart_count"]
+
+    # Update sql_queries if present
+    if "sql_queries" in result:
+        dashboard["sql_queries"] = result["sql_queries"]

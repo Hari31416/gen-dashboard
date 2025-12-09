@@ -276,10 +276,10 @@ def _parse_viz_spec_response(
 ) -> Dict[str, Any]:
     """Parse Vega-Lite spec from LLM response and use URL-based data loading."""
     import re
-    
+
     # Try to extract JSON from code block
     json_match = re.search(r"```(?:json)?\s*(\{.*?\})\s*```", response_text, re.DOTALL)
-    
+
     if json_match:
         json_str = json_match.group(1)
     else:
@@ -289,30 +289,81 @@ def _parse_viz_spec_response(
             json_str = json_match.group(0)
         else:
             return None
-    
+
     try:
         spec = json.loads(json_str)
-        
+
         # Ensure required fields
         if "mark" not in spec:
             return None
         if "encoding" not in spec:
             return None
-        
+
         # Add chart_id
         spec["chart_id"] = chart_id
-        
+
         # Check if this is a geoshape (map) chart
         mark = spec.get("mark", {})
         mark_type = mark.get("type") if isinstance(mark, dict) else mark
-        
+
         logger.info(f"Parsed viz spec for {chart_id}: mark_type={mark_type}")
-        
+
         if mark_type == "geoshape":
             # Transform to proper geoshape spec with GeoJSON
             logger.info(f"Applying geoshape transformation for {chart_id}")
             spec = _transform_to_geoshape_spec(spec, data, goal, chart_id, session_id)
             logger.info(f"Geoshape spec has projection={spec.get('projection')}, transform={bool(spec.get('transform'))}")
+        elif mark_type == "arc":
+            # Ensure arc (pie) charts have theta/color encoding, not x/y
+            encoding = spec.get("encoding", {})
+            if "theta" not in encoding and ("x" in encoding or "y" in encoding):
+                # LLM generated wrong encoding, fix it
+                x_field = encoding.get("x", {}).get("field")
+                y_field = encoding.get("y", {}).get("field")
+                x_type = encoding.get("x", {}).get("type", "nominal")
+                y_type = encoding.get("y", {}).get("type", "quantitative")
+
+                # Determine which field is categorical (for color) and which is numeric (for theta)
+                # Usually x is categorical and y is quantitative
+                if y_type == "quantitative" or (y_field and x_field):
+                    theta_field = y_field or x_field
+                    color_field = x_field or y_field
+                else:
+                    # If we can't determine, try to infer from data
+                    theta_field = y_field
+                    color_field = x_field
+                    if data and len(data) > 0:
+                        for key, val in data[0].items():
+                            if isinstance(val, (int, float)):
+                                if theta_field is None:
+                                    theta_field = key
+                            else:
+                                if color_field is None:
+                                    color_field = key
+
+                # Ensure we have different fields for theta and color
+                if theta_field == color_field and data and len(data) > 0:
+                    # Find another field for color
+                    for key in data[0].keys():
+                        if key != theta_field:
+                            color_field = key
+                            break
+
+                new_encoding = {
+                    "theta": {"field": theta_field, "type": "quantitative"},
+                    "color": {"field": color_field, "type": "nominal"},
+                }
+                # Preserve tooltip if present
+                if "tooltip" in encoding:
+                    new_encoding["tooltip"] = encoding["tooltip"]
+
+                spec["encoding"] = new_encoding
+                logger.info(
+                    f"Fixed arc encoding for {chart_id}: theta={theta_field}, color={color_field}"
+                )
+
+            # Use inline data for pie charts (URL-based can have issues with aggregation)
+            spec["data"] = {"values": data}
         else:
             # Use URL-based data loading if session_id is available
             if session_id:
@@ -324,15 +375,15 @@ def _parse_viz_spec_response(
             else:
                 # Fallback to inline data if no session_id
                 spec["data"] = {"values": data}
-        
+
         # Set defaults
         if "width" not in spec:
             spec["width"] = 400 if mark_type != "geoshape" else 500
         if "height" not in spec:
             spec["height"] = 300 if mark_type != "geoshape" else 400
-        
+
         return spec
-        
+
     except json.JSONDecodeError as e:
         logger.error(f"Failed to parse viz spec JSON: {e}")
         return None
@@ -446,35 +497,35 @@ def _transform_to_geoshape_spec(
 def _generate_fallback_viz_spec(goal: Dict[str, Any], data_result: Dict[str, Any]) -> Dict[str, Any]:
     """Generate a basic fallback visualization spec."""
     from services.geojson_service import get_geojson_config
-    
+
     chart_id = goal.get("chart_id", "unknown")
     chart_type = goal.get("chart_type", "bar")
     title = goal.get("title", "Chart")
     data = data_result.get("data", [])
     columns = data_result.get("columns", [])
-    
+
     # Map chart type to Vega-Lite mark
     mark_map = {
         "bar": {"type": "bar", "cornerRadiusEnd": 4},
         "line": {"type": "line", "point": True},
         "area": {"type": "area", "line": True},
-        "arc": {"type": "arc", "innerRadius": 50},
+        "arc": {"type": "arc"},
         "point": {"type": "point", "filled": True},
         "text": {"type": "text", "fontSize": 36, "fontWeight": "bold"},
         "rect": {"type": "rect"},
         "geoshape": {"type": "geoshape", "stroke": "white", "strokeWidth": 0.5},
     }
-    
+
     mark = mark_map.get(chart_type, {"type": "bar"})
-    
+
     # Handle geoshape (choropleth map) specially
     if chart_type == "geoshape":
         return _generate_geoshape_spec(goal, data_result)
-    
+
     # Determine encoding based on columns
     x_field = goal.get("x_field") or (columns[0] if columns else "x")
     y_field = goal.get("y_field") or (columns[1] if len(columns) > 1 else columns[0] if columns else "y")
-    
+
     # Detect field types
     def infer_type(field_name: str, sample_data: List[Dict]) -> str:
         if not sample_data:
@@ -485,10 +536,10 @@ def _generate_fallback_viz_spec(goal: Dict[str, Any], data_result: Dict[str, Any
         if "date" in field_name.lower() or "time" in field_name.lower():
             return "temporal"
         return "nominal"
-    
+
     x_type = infer_type(x_field, data[:5])
     y_type = infer_type(y_field, data[:5])
-    
+
     # Build encoding
     if chart_type == "arc":
         encoding = {
@@ -505,12 +556,12 @@ def _generate_fallback_viz_spec(goal: Dict[str, Any], data_result: Dict[str, Any
             "x": {"field": x_field, "type": x_type, "title": x_field.replace("_", " ").title()},
             "y": {"field": y_field, "type": y_type, "title": y_field.replace("_", " ").title()},
         }
-        
+
         # Add color if specified
         color_field = goal.get("color_field")
         if color_field:
             encoding["color"] = {"field": color_field, "type": "nominal"}
-    
+
     return {
         "chart_id": chart_id,
         "mark": mark,
@@ -606,4 +657,3 @@ def _generate_geoshape_spec(goal: Dict[str, Any], data_result: Dict[str, Any]) -
     }
     
     return spec
-

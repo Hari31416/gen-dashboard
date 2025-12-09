@@ -106,20 +106,20 @@ async def layout_agent_node(state: DashboardGraphState) -> Dict[str, Any]:
         Updated state with dashboard_spec
     """
     start_time = time.time()
-    
+
     user_prompt = state.get("user_prompt", "")
     viz_specs = state.get("viz_specs", [])
     chart_goals = state.get("chart_goals", [])
     theme = state.get("theme", "default")
-    
+
     if not viz_specs:
         return {
             "error": "No visualization specs provided to Layout Agent",
             "failed_stage": "layout",
         }
-    
+
     logger.info(f"Layout Agent composing {len(viz_specs)} charts")
-    
+
     try:
         # For simple cases, use deterministic layout
         if len(viz_specs) <= 3:
@@ -131,36 +131,37 @@ async def layout_agent_node(state: DashboardGraphState) -> Dict[str, Any]:
             dashboard_spec = await _compose_complex_layout(
                 viz_specs, chart_goals, user_prompt, theme
             )
-        
+
         execution_time = (time.time() - start_time) * 1000
-        
+
         # Add SQL queries for refresh capability
         sql_queries = []
-        for result in state.get("chart_data_results", []):
-            if result.get("sql_query"):
+        chart_data_results = state.get("chart_data_results") or []
+        for result in chart_data_results:
+            if result and result.get("sql_query"):
                 sql_queries.append({
                     "chart_id": result.get("chart_id"),
                     "sql_query": result.get("sql_query"),
                 })
-        
+
         dashboard_spec["sql_queries"] = sql_queries
-        
+
         logger.info(f"Layout Agent composed dashboard in {execution_time:.2f}ms")
-        
+
         # Calculate total time
         total_time = (
-            state.get("strategy_time_ms", 0) +
-            state.get("data_time_ms", 0) +
-            state.get("viz_time_ms", 0) +
-            execution_time
+            (state.get("strategy_time_ms") or 0)
+            + (state.get("data_time_ms") or 0)
+            + (state.get("viz_time_ms") or 0)
+            + execution_time
         )
-        
+
         return {
             "dashboard_spec": dashboard_spec,
             "layout_time_ms": execution_time,
             "total_time_ms": total_time,
         }
-        
+
     except Exception as e:
         logger.exception(f"Layout Agent failed: {e}")
         return {

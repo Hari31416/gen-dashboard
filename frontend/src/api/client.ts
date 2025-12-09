@@ -4,6 +4,7 @@ import type {
     DashboardRefineRequest,
     DashboardRefreshRequest,
     DashboardResponse,
+    DashboardFilterRequest,
     LayoutConfig
 } from '@/types/dashboard';
 
@@ -51,6 +52,10 @@ export const dashboardApi = {
     },
     refresh: async (request: DashboardRefreshRequest): Promise<DashboardResponse> => {
         const response = await api.post<DashboardResponse>('/dashboard/refresh', request);
+        return response.data;
+    },
+    filter: async (request: DashboardFilterRequest): Promise<DashboardResponse> => {
+        const response = await api.post<DashboardResponse>('/dashboard/filter', request);
         return response.data;
     },
     updateLayout: async (sessionId: string, layoutConfig: LayoutConfig): Promise<{ success: boolean; message: string; session_id: string }> => {

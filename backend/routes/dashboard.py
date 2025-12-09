@@ -341,6 +341,11 @@ async def refine_dashboard(
 
         dashboard_spec = result.get("dashboard_spec")
 
+        # Ensure sql_queries are in dashboard_spec before saving
+        if result.get("updated_sql_queries"):
+            if isinstance(dashboard_spec, dict):
+                dashboard_spec["sql_queries"] = result["updated_sql_queries"]
+
         # Update session with new dashboard
         update_dashboard_session(
             username=username,
@@ -356,15 +361,6 @@ async def refine_dashboard(
             ),
             refinement_feedback=request.new_feedback,
         )
-
-        # Also update sql_queries if they changed
-        if result.get("updated_sql_queries"):
-            session["sql_queries"] = result["updated_sql_queries"]
-            update_dashboard_session(
-                username=username,
-                session_id=session_id,
-                dashboard_spec=session.get("dashboard_spec"),
-            )
 
         # Build response
         if isinstance(dashboard_spec, dict):

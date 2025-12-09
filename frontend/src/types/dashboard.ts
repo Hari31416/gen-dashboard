@@ -121,4 +121,14 @@ export interface DashboardResponse {
     dashboard?: ComposedDashboardSpec;
     error?: string;
     generation_time_ms?: number;
+    // Clarification fields (present when requires_clarification is true)
+    requires_clarification?: boolean;
+    clarification_question?: string;
+    reasoning?: string;
+}
+
+// Filter request for the new /filter endpoint
+export interface DashboardFilterRequest {
+    session_id: string;
+    filter_state: Record<string, any>;
 }
