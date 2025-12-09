@@ -404,23 +404,34 @@ def _transform_to_geoshape_spec(
     """
     from services.geojson_service import get_geojson_config
     from env import BACKEND_URL
-    
+
     goal = goal or {}
-    
+
     # Get geography configuration
-    geography_level = goal.get("geography_level", "us")  # Default to US for testing
+    geography_level = goal.get("geography_level", "world")  # Default to world map
     geography_field = goal.get("geography_field")
     target_state = goal.get("target_state")
-    
+
     geojson_config = get_geojson_config(geography_level, target_state)
     geojson_url = geojson_config["url"]
     feature_key = geojson_config["feature_key"]
-    
+
     # Find the geography field from data if not specified
     if not geography_field and data:
         columns = list(data[0].keys()) if data else []
         # Common geography field patterns
-        for pattern in ["state", "province", "territory", "district", "region", "country", "area", "location", "name"]:
+        for pattern in [
+            "country",
+            "state",
+            "province",
+            "territory",
+            "district",
+            "region",
+            "area",
+            "location",
+            "name",
+            "nation",
+        ]:
             for col in columns:
                 if pattern in col.lower():
                     geography_field = col
@@ -428,69 +439,94 @@ def _transform_to_geoshape_spec(
             if geography_field:
                 break
         if not geography_field:
-            geography_field = columns[0] if columns else "state"
-    
+            geography_field = columns[0] if columns else "country"
+
     # Find the value field from encoding
     value_field = None
     encoding = spec.get("encoding", {})
     if "color" in encoding:
         value_field = encoding["color"].get("field")
-    
+
     if not value_field and data:
         # Find first numeric column
         for key, val in data[0].items():
             if isinstance(val, (int, float)) and key != geography_field:
                 value_field = key
                 break
-    
+
     value_field = value_field or "value"
-    
+
     # Build data source for lookup transform - use URL if session_id available
     if session_id and chart_id:
         lookup_data = {"url": f"{BACKEND_URL}/dashboard/{session_id}/chart/{chart_id}/data"}
     else:
         lookup_data = {"values": data}
-    
+
+    # Determine data format based on config
+    if geojson_config.get("format") == "topojson":
+        # TopoJSON format (for world maps)
+        data_spec = {
+            "url": geojson_url,
+            "format": {
+                "type": "topojson",
+                "feature": geojson_config.get("feature", "countries"),
+            },
+        }
+        # For TopoJSON, the properties are accessed differently
+        lookup_field = f"properties.{feature_key}"
+    else:
+        # Regular GeoJSON format
+        data_spec = {
+            "url": geojson_url,
+            "format": {"type": "json", "property": "features"},
+        }
+        lookup_field = f"properties.{feature_key}"
+
     # Build the proper geoshape spec
     transformed_spec = {
         "chart_id": spec.get("chart_id", "map"),
         "title": spec.get("title", "Map"),
         "width": 500,
         "height": 400,
-        "projection": spec.get("projection", {"type": "mercator"}),
-        "data": {
-            "url": geojson_url,
-            "format": {"type": "json", "property": "features"}
-        },
+        "projection": spec.get(
+            "projection", {"type": "equalEarth"}
+        ),  # Better projection for world maps
+        "data": data_spec,
         "transform": [
             {
-                "lookup": f"properties.{feature_key}",
+                "lookup": lookup_field,
                 "from": {
                     "data": lookup_data,
                     "key": geography_field,
-                    "fields": [value_field]
-                }
+                    "fields": [value_field],
+                },
             }
         ],
-        "mark": spec.get("mark", {"type": "geoshape", "stroke": "white", "strokeWidth": 0.5}),
+        "mark": spec.get(
+            "mark", {"type": "geoshape", "stroke": "white", "strokeWidth": 0.5}
+        ),
         "encoding": {
             "color": {
                 "field": value_field,
                 "type": "quantitative",
                 "scale": {"scheme": "blues"},
-                "title": value_field.replace("_", " ").title()
+                "title": value_field.replace("_", " ").title(),
             },
             "tooltip": [
-                {"field": f"properties.{feature_key}", "type": "nominal", "title": "Region"},
-                {"field": value_field, "type": "quantitative", "title": value_field.replace("_", " ").title()}
-            ]
-        }
+                {"field": lookup_field, "type": "nominal", "title": "Region"},
+                {
+                    "field": value_field,
+                    "type": "quantitative",
+                    "title": value_field.replace("_", " ").title(),
+                },
+            ],
+        },
     }
-    
+
     # Preserve any custom color scale from LLM
     if "color" in encoding and "scale" in encoding["color"]:
         transformed_spec["encoding"]["color"]["scale"] = encoding["color"]["scale"]
-    
+
     return transformed_spec
 
 
@@ -580,21 +616,21 @@ def _generate_geoshape_spec(goal: Dict[str, Any], data_result: Dict[str, Any]) -
     Uses external GeoJSON with lookup transform to join data.
     """
     from services.geojson_service import get_geojson_config
-    
+
     chart_id = goal.get("chart_id", "unknown")
     title = goal.get("title", "Map")
     data = data_result.get("data", [])
     columns = data_result.get("columns", [])
-    
+
     # Get geography configuration
-    geography_level = goal.get("geography_level", "country")
+    geography_level = goal.get("geography_level", "world")  # Default to world
     geography_field = goal.get("geography_field")
     target_state = goal.get("target_state")
-    
+
     geojson_config = get_geojson_config(geography_level, target_state)
     geojson_url = geojson_config["url"]
     feature_key = geojson_config["feature_key"]
-    
+
     # Determine the value field (y_field typically contains the metric)
     value_field = goal.get("y_field")
     if not value_field:
@@ -605,11 +641,20 @@ def _generate_geoshape_spec(goal: Dict[str, Any], data_result: Dict[str, Any]) -
                 break
         if not value_field:
             value_field = columns[1] if len(columns) > 1 else columns[0] if columns else "value"
-    
+
     # If no geography_field specified, try to detect
     if not geography_field:
         # Common geography field patterns
-        for pattern in ["state", "district", "region", "area", "location", "name"]:
+        for pattern in [
+            "country",
+            "state",
+            "district",
+            "region",
+            "area",
+            "location",
+            "name",
+            "nation",
+        ]:
             for col in columns:
                 if pattern in col.lower():
                     geography_field = col
@@ -617,8 +662,27 @@ def _generate_geoshape_spec(goal: Dict[str, Any], data_result: Dict[str, Any]) -
             if geography_field:
                 break
         if not geography_field:
-            geography_field = columns[0] if columns else "state"
-    
+            geography_field = columns[0] if columns else "country"
+
+    # Determine data format based on config
+    if geojson_config.get("format") == "topojson":
+        # TopoJSON format (for world maps)
+        data_spec = {
+            "url": geojson_url,
+            "format": {
+                "type": "topojson",
+                "feature": geojson_config.get("feature", "countries"),
+            },
+        }
+    else:
+        # Regular GeoJSON format
+        data_spec = {
+            "url": geojson_url,
+            "format": {"type": "json", "property": "features"},
+        }
+
+    lookup_field = f"properties.{feature_key}"
+
     # Build the Vega-Lite spec with lookup transform
     # The GeoJSON is the primary data source, and we lookup values from our data
     spec = {
@@ -626,19 +690,16 @@ def _generate_geoshape_spec(goal: Dict[str, Any], data_result: Dict[str, Any]) -
         "title": title,
         "width": 500,
         "height": 400,
-        "projection": {"type": "mercator"},
-        "data": {
-            "url": geojson_url,
-            "format": {"type": "json", "property": "features"}
-        },
+        "projection": {"type": "equalEarth"},  # Better for world maps
+        "data": data_spec,
         "transform": [
             {
-                "lookup": f"properties.{feature_key}",
+                "lookup": lookup_field,
                 "from": {
                     "data": {"values": data},
                     "key": geography_field,
-                    "fields": [value_field]
-                }
+                    "fields": [value_field],
+                },
             }
         ],
         "mark": {"type": "geoshape", "stroke": "white", "strokeWidth": 0.5},
@@ -647,13 +708,17 @@ def _generate_geoshape_spec(goal: Dict[str, Any], data_result: Dict[str, Any]) -
                 "field": value_field,
                 "type": "quantitative",
                 "scale": {"scheme": "blues"},
-                "title": value_field.replace("_", " ").title()
+                "title": value_field.replace("_", " ").title(),
             },
             "tooltip": [
-                {"field": f"properties.{feature_key}", "type": "nominal", "title": "Region"},
-                {"field": value_field, "type": "quantitative", "title": value_field.replace("_", " ").title()}
-            ]
-        }
+                {"field": lookup_field, "type": "nominal", "title": "Region"},
+                {
+                    "field": value_field,
+                    "type": "quantitative",
+                    "title": value_field.replace("_", " ").title(),
+                },
+            ],
+        },
     }
-    
+
     return spec

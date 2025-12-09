@@ -82,19 +82,19 @@ async def execute_refinement_actions(
     """
     start_time = time.time()
     logger.info(f"Executing {len(actions)} refinement actions for session {session_id}")
-    
+
     # Make deep copies to avoid modifying originals
     updated_dashboard = copy.deepcopy(current_dashboard)
     updated_sql_queries = copy.deepcopy(sql_queries)
     updated_chart_goals = copy.deepcopy(chart_goals)
-    
+
     # Get database connection
     db_config = get_db_config(username, connection_name)
     if not db_config:
         return {"error": f"Database configuration not found for {connection_name}"}
-    
+
     connection_string = build_connection_string(**db_config)
-    
+
     try:
         # Check for full_redesign first - it overrides everything else
         full_redesign_actions = [
@@ -112,27 +112,27 @@ async def execute_refinement_actions(
                 connection_name=connection_name,
                 session_id=session_id,
             )
-            
+
             if result.get("error"):
                 return {"error": result["error"]}
-            
+
             total_time = (time.time() - start_time) * 1000
             return {
                 "dashboard_spec": result.get("dashboard_spec", updated_dashboard),
                 "updated_sql_queries": result.get("sql_queries", updated_sql_queries),
                 "total_time_ms": total_time,
             }
-        
+
         # Group actions by parallelizability
         parallel_actions = [a for a in actions if a.action_type in PARALLELIZABLE_ACTIONS]
         sequential_actions = [a for a in actions if a.action_type in SEQUENTIAL_ACTIONS]
-        
+
         # =====================================================================
         # Execute parallelizable actions concurrently
         # =====================================================================
         if parallel_actions:
             logger.info(f"Executing {len(parallel_actions)} actions in parallel")
-            
+
             parallel_tasks = []
             for action in parallel_actions:
                 if action.action_type == RefinementActionType.CHANGE_TITLE:
@@ -149,10 +149,10 @@ async def execute_refinement_actions(
                             action, updated_dashboard, updated_sql_queries, connection_string
                         )
                     )
-            
+
             if parallel_tasks:
                 results = await asyncio.gather(*parallel_tasks, return_exceptions=True)
-                
+
                 # Merge results into updated_dashboard
                 for result in results:
                     if isinstance(result, Exception):
@@ -160,19 +160,22 @@ async def execute_refinement_actions(
                         continue
                     if isinstance(result, dict):
                         _merge_result(updated_dashboard, result)
-        
+
         # =====================================================================
         # Execute sequential actions in order
         # =====================================================================
         for action in sequential_actions:
             logger.info(f"Executing sequential action: {action.action_type.value}")
-            
+
             try:
                 if action.action_type == RefinementActionType.REMOVE_CHART:
                     result = await handle_remove_chart(
-                        action, updated_dashboard, updated_sql_queries
+                        action,
+                        updated_dashboard,
+                        updated_sql_queries,
+                        updated_chart_goals,
                     )
-                    
+
                 elif action.action_type == RefinementActionType.MODIFY_SQL:
                     result = await handle_modify_sql(
                         action=action,
@@ -185,7 +188,7 @@ async def execute_refinement_actions(
                         connection_name=connection_name,
                         session_id=session_id,
                     )
-                    
+
                 elif action.action_type == RefinementActionType.CHANGE_ENCODING:
                     result = await handle_change_encoding(
                         action=action,
@@ -193,7 +196,7 @@ async def execute_refinement_actions(
                         updated_chart_goals=updated_chart_goals,
                         user_feedback=user_feedback,
                     )
-                    
+
                 elif action.action_type == RefinementActionType.CHANGE_LAYOUT:
                     result = await handle_change_layout(
                         action=action,
@@ -205,18 +208,19 @@ async def execute_refinement_actions(
                         connection_name=connection_name,
                         session_id=session_id,
                     )
-                    
+
                 elif action.action_type == RefinementActionType.ADD_CHART:
                     result = await handle_add_chart(
                         action=action,
                         updated_dashboard=updated_dashboard,
                         updated_sql_queries=updated_sql_queries,
+                        updated_chart_goals=updated_chart_goals,
                         user_feedback=user_feedback,
                         username=username,
                         connection_name=connection_name,
                         session_id=session_id,
                     )
-                    
+
                 elif action.action_type == RefinementActionType.CHANGE_THEME:
                     result = await handle_change_theme(
                         action=action,
@@ -225,26 +229,29 @@ async def execute_refinement_actions(
                 else:
                     logger.warning(f"Unknown action type: {action.action_type}")
                     continue
-                
+
                 # Merge result
                 if isinstance(result, dict):
                     _merge_result(updated_dashboard, result)
                     if result.get("sql_queries"):
                         updated_sql_queries = result["sql_queries"]
-                        
+                    if result.get("chart_goals"):
+                        updated_chart_goals = result["chart_goals"]
+
             except Exception as e:
                 logger.error(f"Sequential action {action.action_type.value} failed: {e}")
                 # Continue with other actions
-        
+
         total_time = (time.time() - start_time) * 1000
         logger.info(f"Selective refinement completed in {total_time:.2f}ms")
-        
+
         return {
             "dashboard_spec": updated_dashboard,
             "updated_sql_queries": updated_sql_queries,
+            "updated_chart_goals": updated_chart_goals,
             "total_time_ms": total_time,
         }
-        
+
     except Exception as e:
         logger.exception(f"Refinement execution failed: {e}")
         return {"error": str(e)}

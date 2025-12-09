@@ -179,29 +179,35 @@ def update_dashboard_session(
     session_id: str,
     dashboard_spec: Dict[str, Any],
     refinement_feedback: Optional[str] = None,
+    chart_goals: Optional[List[Dict[str, Any]]] = None,
 ) -> bool:
     """
     Update a dashboard session after refinement.
-    
+
     Args:
         username: User's username
         session_id: Session ID
         dashboard_spec: Updated dashboard specification
         refinement_feedback: Optional feedback that triggered the update
-        
+        chart_goals: Optional updated chart goals
+
     Returns:
         True if updated, False if not found
     """
     collection = get_dashboard_sessions_collection(username)
-    
-    update_doc = {
-        "$set": {
-            "dashboard_spec": dashboard_spec,
-            "sql_queries": dashboard_spec.get("sql_queries", []),
-            "updated_at": datetime.utcnow(),
-        }
+
+    update_fields = {
+        "dashboard_spec": dashboard_spec,
+        "sql_queries": dashboard_spec.get("sql_queries", []),
+        "updated_at": datetime.utcnow(),
     }
-    
+
+    # Also update chart_goals if provided
+    if chart_goals is not None:
+        update_fields["chart_goals"] = chart_goals
+
+    update_doc = {"$set": update_fields}
+
     # Add refinement to history
     if refinement_feedback:
         update_doc["$push"] = {
@@ -210,12 +216,12 @@ def update_dashboard_session(
                 "timestamp": datetime.utcnow(),
             }
         }
-    
+
     result = collection.update_one(
         {"session_id": session_id},
         update_doc,
     )
-    
+
     return result.modified_count > 0
 
 

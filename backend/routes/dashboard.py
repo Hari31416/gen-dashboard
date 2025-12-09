@@ -346,7 +346,7 @@ async def refine_dashboard(
             if isinstance(dashboard_spec, dict):
                 dashboard_spec["sql_queries"] = result["updated_sql_queries"]
 
-        # Update session with new dashboard
+        # Update session with new dashboard and chart_goals
         update_dashboard_session(
             username=username,
             session_id=session_id,
@@ -360,6 +360,7 @@ async def refine_dashboard(
                 )
             ),
             refinement_feedback=request.new_feedback,
+            chart_goals=result.get("updated_chart_goals"),
         )
 
         # Build response

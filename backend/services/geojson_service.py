@@ -106,15 +106,26 @@ def get_geojson_config(
             "feature_key": "name",
             "lookup_key": "properties.name",
         }
-    
+
+    # World map (countries)
+    if level in ("world", "global", "countries", "country"):
+        # Use Natural Earth world countries GeoJSON from a public CDN
+        return {
+            "url": "https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json",
+            "feature_key": "name",
+            "lookup_key": "properties.name",
+            "format": "topojson",  # This is TopoJSON, not GeoJSON
+            "feature": "countries",  # TopoJSON object name
+        }
+
     # India country level (shows states)
-    if level == "country" or level == "india":
+    if level == "india" or level == "india_states":
         return {
             "url": f"{GEOJSON_BASE_URL}/india.geojson",
             "feature_key": "STNAME",
             "lookup_key": "properties.STNAME",
         }
-    
+
     # India state level (shows districts)
     elif level == "state" and target_state:
         filename = get_state_geojson_filename(target_state)
@@ -131,12 +142,14 @@ def get_geojson_config(
                 "feature_key": "STNAME",
                 "lookup_key": "properties.STNAME",
             }
-    
-    # Default to India country level
+
+    # Default to world map
     return {
-        "url": f"{GEOJSON_BASE_URL}/india.geojson",
-        "feature_key": "STNAME",
-        "lookup_key": "properties.STNAME",
+        "url": "https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json",
+        "feature_key": "name",
+        "lookup_key": "properties.name",
+        "format": "topojson",
+        "feature": "countries",
     }
 
 

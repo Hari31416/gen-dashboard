@@ -416,6 +416,7 @@ async def handle_add_chart(
     action: Any,
     updated_dashboard: Dict[str, Any],
     updated_sql_queries: List[Dict[str, str]],
+    updated_chart_goals: List[Dict[str, Any]],
     user_feedback: str,
     username: str,
     connection_name: str,
@@ -423,21 +424,22 @@ async def handle_add_chart(
 ) -> Dict[str, Any]:
     """
     Add a new chart to the dashboard using full pipeline.
-    
+
     Args:
         action: RefinementAction with parameters.description
         updated_dashboard: Current dashboard spec
         updated_sql_queries: Current SQL queries
+        updated_chart_goals: Current chart goals
         user_feedback: User's feedback
         username: Username
         connection_name: Connection name
         session_id: Session ID
-        
+
     Returns:
-        Dict with updated individual_specs, layout_config, sql_queries, chart_count
+        Dict with updated individual_specs, layout_config, sql_queries, chart_count, chart_goals
     """
     from langchain_agents.dashboard.graph import run_dashboard_generation
-    
+
     description = action.parameters.get("description", user_feedback)
 
     # Run full pipeline for the new chart
@@ -456,13 +458,22 @@ async def handle_add_chart(
     new_spec = new_chart_result.get("dashboard_spec", {})
     new_individual = new_spec.get("individual_specs", [])
     new_queries = new_spec.get("sql_queries", [])
+    new_goals = new_chart_result.get("chart_goals", [])
 
     if not new_individual:
         return {}
 
-    # Generate new chart ID
+    # Generate new chart ID based on max existing ID
     existing_ids = [s.get("chart_id", "") for s in updated_dashboard.get("individual_specs", [])]
-    new_id = f"chart_{len(existing_ids) + 1}"
+    max_num = 0
+    for eid in existing_ids:
+        if eid.startswith("chart_"):
+            try:
+                num = int(eid.replace("chart_", ""))
+                max_num = max(max_num, num)
+            except ValueError:
+                pass
+    new_id = f"chart_{max_num + 1}"
     new_individual[0]["chart_id"] = new_id
 
     # Add to dashboard
@@ -486,9 +497,14 @@ async def handle_add_chart(
         new_queries[0]["chart_id"] = new_id
         updated_sql_queries.append(new_queries[0])
 
+    # Add chart goal
+    if new_goals:
+        new_goals[0]["chart_id"] = new_id
+        updated_chart_goals.append(new_goals[0])
+
     chart_count = len(updated_dashboard.get("individual_specs", []))
     updated_dashboard["chart_count"] = chart_count
-    
+
     logger.info(f"Added new chart: {new_id}")
 
     return {
@@ -496,6 +512,7 @@ async def handle_add_chart(
         "layout_config": updated_dashboard.get("layout_config"),
         "sql_queries": updated_sql_queries,
         "chart_count": chart_count,
+        "chart_goals": updated_chart_goals,
     }
 
 
@@ -503,20 +520,22 @@ async def handle_remove_chart(
     action: Any,
     updated_dashboard: Dict[str, Any],
     updated_sql_queries: List[Dict[str, str]],
+    updated_chart_goals: List[Dict[str, Any]],
 ) -> Dict[str, Any]:
     """
     Remove a chart from the dashboard.
-    
+
     Args:
         action: RefinementAction with target_chart_id
         updated_dashboard: Current dashboard spec
         updated_sql_queries: Current SQL queries
-        
+        updated_chart_goals: Current chart goals
+
     Returns:
-        Dict with updated individual_specs, layout_config, sql_queries, chart_count
+        Dict with updated individual_specs, layout_config, sql_queries, chart_count, chart_goals
     """
     chart_id = action.target_chart_id
-    
+
     if not chart_id:
         logger.warning("No chart_id specified for remove_chart action")
         return {}
@@ -526,24 +545,29 @@ async def handle_remove_chart(
         s for s in updated_dashboard.get("individual_specs", [])
         if s.get("chart_id") != chart_id
     ]
-    
+
     # Remove from layout
     if updated_dashboard.get("layout_config"):
         updated_dashboard["layout_config"]["layout"] = [
             l for l in updated_dashboard["layout_config"].get("layout", [])
             if l.get("i") != chart_id
         ]
-    
+
     # Remove from sql_queries
     updated_sql_queries[:] = [
         q for q in updated_sql_queries
         if q.get("chart_id") != chart_id
     ]
-    
+
+    # Remove from chart_goals
+    updated_chart_goals[:] = [
+        g for g in updated_chart_goals if g.get("chart_id") != chart_id
+    ]
+
     # Update chart count
     chart_count = len(updated_dashboard.get("individual_specs", []))
     updated_dashboard["chart_count"] = chart_count
-    
+
     logger.info(f"Removed chart {chart_id}")
 
     return {
@@ -551,6 +575,7 @@ async def handle_remove_chart(
         "layout_config": updated_dashboard.get("layout_config"),
         "sql_queries": updated_sql_queries,
         "chart_count": chart_count,
+        "chart_goals": updated_chart_goals,
     }
 
 
