@@ -26,7 +26,7 @@ const IndividualChart: React.FC<{
     spec: Record<string, any>;
     chartId: string;
     onFilterChange?: (filters: Record<string, any>) => void;
-}> = ({ spec, chartId, onFilterChange }) => {
+}> = ({ spec, chartId: _chartId, onFilterChange }) => {
     const containerRef = useRef<HTMLDivElement>(null);
     const viewRef = useRef<any>(null);
     const resizeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -84,7 +84,7 @@ const IndividualChart: React.FC<{
 
                 // Add click listener if we have a callback
                 if (onFilterChange) {
-                    result.view.addEventListener('click', (event, item) => {
+                    result.view.addEventListener('click', (_event, item) => {
                         if (item && item.datum) {
                             // Extract meaningful data points for filtering
                             const datum = item.datum;
