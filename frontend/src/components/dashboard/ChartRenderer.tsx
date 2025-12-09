@@ -16,6 +16,7 @@ interface ChartRendererProps {
     sessionId?: string | null;
     onLayoutChange?: (layout: LayoutConfig) => void;
     onFilterChange?: (filters: Record<string, any>) => void;
+    onRefresh?: () => void;
 }
 
 /**
@@ -174,7 +175,8 @@ export const ChartRenderer: React.FC<ChartRendererProps> = ({
     isLoading,
     sessionId,
     onLayoutChange,
-    onFilterChange
+    onFilterChange,
+    onRefresh
 }) => {
     const containerRef = useRef<HTMLDivElement>(null);
     const [editMode, setEditMode] = useState(false);
@@ -542,6 +544,16 @@ export const ChartRenderer: React.FC<ChartRendererProps> = ({
                                 <Button
                                     variant="outline"
                                     size="sm"
+                                        onClick={onRefresh}
+                                        className="gap-2"
+                                        disabled={isLoading}
+                                    >
+                                        <RotateCcw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
+                                        Refresh Data
+                                    </Button>
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
                                     onClick={handleExportHTML}
                                     className="gap-2"
                                 >

@@ -84,7 +84,7 @@ export function SavedDashboards({ onSelect, className }: SavedDashboardsProps) {
     }
 
     return (
-        <div className={cn("space-y-3", className)}>
+        <div className={cn("space-y-3 h-full overflow-y-auto pr-2 -mr-2", className)}>
             {sessions.map((session) => (
                 <div
                     key={session.session_id}

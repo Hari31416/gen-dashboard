@@ -8,7 +8,7 @@ import { DebugLogin } from './DebugLogin';
 import { SavedDashboards } from './SavedDashboards';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger, SheetDescription } from "@/components/ui/sheet";
-import { RefreshCw, History } from 'lucide-react';
+import { History } from 'lucide-react';
 import { FilterPanel } from './FilterPanel';
 
 export const DashboardView: React.FC = () => {
@@ -124,47 +124,47 @@ export const DashboardView: React.FC = () => {
     };
 
     return (
-        <div className="flex flex-col gap-8 max-w-6xl mx-auto p-4 md:p-8 min-h-screen">
-            <header className="flex flex-col gap-4 text-center py-8">
-                <div className="relative inline-block w-full max-w-4xl mx-auto">
-                    <h1 className="text-4xl font-extrabold tracking-tight lg:text-5xl bg-clip-text text-transparent bg-gradient-to-r from-primary to-purple-400 pb-2">
-                        AI Analytics Dashboard
+        <div className="flex flex-col gap-4 max-w-[95%] w-full mx-auto p-4 min-h-screen">
+            <header className="flex items-center justify-between py-4 border-b border-border/40 mb-6 bg-muted/40 px-6 -mx-4 rounded-b-xl shadow-sm">
+                <div className="flex flex-col gap-1">
+                    <h1 className="text-2xl font-bold tracking-tight text-primary">
+                        Generative Dashboard
                     </h1>
-                    <div className="absolute top-0 right-0 flex gap-2">
-                        <Sheet open={historyOpen} onOpenChange={setHistoryOpen}>
-                            <SheetTrigger asChild>
-                                <Button variant="outline" size="sm" className="hidden sm:flex text-foreground">
-                                    <History className="mr-2 h-4 w-4" />
-                                    History
-                                </Button>
-                            </SheetTrigger>
-                            <SheetContent>
-                                <SheetHeader className="mb-6">
-                                    <SheetTitle>Dashboard History</SheetTitle>
-                                    <SheetDescription>
-                                        View and restore your past dashboard generations.
-                                    </SheetDescription>
-                                </SheetHeader>
-                                <SavedDashboards
-                                    onSelect={(id) => {
-                                        handleLoadSession(id);
-                                        setHistoryOpen(false);
-                                    }}
-                                />
-                            </SheetContent>
-                        </Sheet>
-                        <DebugLogin />
-                    </div>
                 </div>
-                <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-                    Transform your data into actionable insights with natural language.
-                </p>
-                <div className="flex justify-center mt-4">
+
+                <div className="flex items-center gap-3">
                     <DatabaseSelector value={selectedConnection} onValueChange={setSelectedConnection} />
+
+                    <div className="h-6 w-px bg-border/60 mx-1" />
+
+                    <Sheet open={historyOpen} onOpenChange={setHistoryOpen}>
+                        <SheetTrigger asChild>
+                            <Button variant="default" size="sm" className="shadow-sm hover:shadow-md transition-all">
+                                <History className="mr-2 h-4 w-4" />
+                                History
+                            </Button>
+                        </SheetTrigger>
+                        <SheetContent>
+                            <SheetHeader className="mb-6">
+                                <SheetTitle>Dashboard History</SheetTitle>
+                                <SheetDescription>
+                                    View and restore your past dashboard generations.
+                                </SheetDescription>
+                            </SheetHeader>
+                            <SavedDashboards
+                                className="h-[calc(100vh-10rem)]"
+                                onSelect={(id) => {
+                                    handleLoadSession(id);
+                                    setHistoryOpen(false);
+                                }}
+                            />
+                        </SheetContent>
+                    </Sheet>
+                    <DebugLogin />
                 </div>
             </header>
 
-            <section className="sticky top-4 z-50 space-y-4">
+            <section className="space-y-4">
                 <PromptInput onSubmit={handleGenerate} isLoading={isLoading} />
 
                 {Object.keys(filterState).length > 0 && (
@@ -185,19 +185,11 @@ export const DashboardView: React.FC = () => {
             </section>
 
             <main className="flex-1 w-full">
-                {sessionId && !isLoading && !error && (
-                    <div className="flex justify-end mb-4">
-                        <Button variant="outline" size="sm" onClick={handleRefresh} className="gap-2">
-                            <RefreshCw className="h-4 w-4" />
-                            Refresh Data
-                        </Button>
-                    </div>
-                )}
-
                 <ChartRenderer
                     dashboard={dashboard}
                     isLoading={isLoading}
                     sessionId={sessionId}
+                    onRefresh={handleRefresh}
                     onFilterChange={(newFilters) => {
                         // Merge with existing filters
                         handleFilterChange({ ...filterState, ...newFilters });

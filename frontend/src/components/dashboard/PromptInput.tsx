@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { LoadingSpinner } from '@/components/ui/loading-spinner';
-import { Send, Sparkles } from 'lucide-react';
+import { Send } from 'lucide-react';
 
 interface PromptInputProps {
     onSubmit: (prompt: string) => void;
@@ -46,10 +46,6 @@ export const PromptInput: React.FC<PromptInputProps> = ({ onSubmit, isLoading })
                         {isLoading ? <LoadingSpinner className="h-4 w-4" /> : <Send className="h-4 w-4" />}
                     </Button>
                 </div>
-            </div>
-            <div className="flex items-center gap-2 mt-2 px-2 text-xs text-muted-foreground">
-                <Sparkles className="h-3 w-3 text-primary" />
-                <span>AI-powered analytics</span>
             </div>
         </form>
     );

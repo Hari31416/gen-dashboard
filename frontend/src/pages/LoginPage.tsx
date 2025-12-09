@@ -36,14 +36,13 @@ export function LoginPage() {
 
     return (
         <div className="min-h-screen flex items-center justify-center bg-gray-50/50 p-4">
-            {/* Background Gradient */}
-            <div className="absolute inset-0 bg-gradient-to-tr from-purple-100/40 via-white to-blue-100/40 pointer-events-none" />
+
 
             <Card className="w-full max-w-md relative bg-white/80 backdrop-blur-xl shadow-xl border-gray-200/50">
                 <CardHeader className="space-y-1 text-center pb-8">
                     <div className="flex justify-center mb-4">
-                        <div className="p-3 rounded-full bg-purple-50 border border-purple-100">
-                            <Sparkles className="w-8 h-8 text-purple-600" />
+                        <div className="p-3 rounded-full bg-primary/10 border border-primary/20">
+                            <Sparkles className="w-8 h-8 text-primary" />
                         </div>
                     </div>
                     <CardTitle className="text-2xl font-bold tracking-tight text-gray-900">
@@ -64,7 +63,7 @@ export function LoginPage() {
                                 value={username}
                                 onChange={(e) => setUsername(e.target.value)}
                                 required
-                                className="bg-white border-gray-200 text-gray-900 placeholder:text-gray-400 focus:border-purple-500 focus:ring-purple-500/20"
+                                className="bg-white border-gray-200 text-gray-900 placeholder:text-gray-400 focus:border-primary focus:ring-primary/20"
                             />
                         </div>
                         <div className="space-y-2">
@@ -76,7 +75,7 @@ export function LoginPage() {
                                 value={password}
                                 onChange={(e) => setPassword(e.target.value)}
                                 required
-                                className="bg-white border-gray-200 text-gray-900 placeholder:text-gray-400 focus:border-purple-500 focus:ring-purple-500/20"
+                                className="bg-white border-gray-200 text-gray-900 placeholder:text-gray-400 focus:border-primary focus:ring-primary/20"
                             />
                         </div>
 
@@ -89,7 +88,7 @@ export function LoginPage() {
 
                         <Button
                             type="submit"
-                            className="w-full bg-gray-900 text-white hover:bg-gray-800 transition-all duration-300 font-medium shadow-md hover:shadow-lg"
+                            className="w-full bg-primary text-primary-foreground hover:bg-primary/90 transition-all duration-300 font-medium shadow-md hover:shadow-lg"
                             disabled={isLoading}
                         >
                             {isLoading ? (
