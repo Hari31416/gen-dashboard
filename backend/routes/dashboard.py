@@ -38,6 +38,11 @@ from services.dashboard.session_service import (
 from langchain_agents.dashboard.agents.refinement_classifier import (
     classify_refinement_intent,
 )
+from services.database.db_connection_service import (
+    run_query_and_return_df,
+    build_connection_string,
+)
+from services.database.db_config_models import get_db_config
 from utilities import create_simple_logger
 
 logger = create_simple_logger(__name__)
@@ -90,13 +95,6 @@ async def get_chart_data(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"No SQL query found for chart {chart_id}",
         )
-
-    # Execute the query
-    from services.database.db_connection_service import (
-        run_query_and_return_df,
-        build_connection_string,
-    )
-    from services.database.db_config_models import get_db_config
 
     # Get database configuration
     db_config = get_db_config(username, connection_name)
@@ -210,13 +208,6 @@ async def generate_dashboard(
             logger.info(f"Dashboard session {session_id} saved to MongoDB")
         except Exception as save_error:
             logger.error(f"Failed to save dashboard session: {save_error}")
-
-        # Build response
-        from langchain_agents.dashboard.models import (
-            ComposedDashboardSpec,
-            LayoutConfig,
-            ChartLayoutPosition,
-        )
 
         # Build layout_config if present
         layout_config = None
