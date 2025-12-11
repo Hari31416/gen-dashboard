@@ -9,7 +9,8 @@ import { SavedDashboards } from './SavedDashboards';
 import { ClarificationDialog } from './ClarificationDialog';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger, SheetDescription } from "@/components/ui/sheet";
-import { History } from 'lucide-react';
+import { History, Plus, Sparkles, RefreshCw } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
 import { FilterPanel } from './FilterPanel';
 
 export const DashboardView: React.FC = () => {
@@ -162,6 +163,14 @@ export const DashboardView: React.FC = () => {
         }
     };
 
+    const handleNewDashboard = () => {
+        setSessionId(null);
+        setDashboard(undefined);
+        setFilterState({});
+        setError(null);
+        setClarificationOpen(false);
+    };
+
     return (
         <div className="flex flex-col gap-4 max-w-[95%] w-full mx-auto p-4 min-h-screen">
             <header className="flex items-center justify-between py-4 border-b border-border/40 mb-6 bg-muted/40 px-6 -mx-4 rounded-b-xl shadow-sm">
@@ -204,7 +213,47 @@ export const DashboardView: React.FC = () => {
             </header>
 
             <section className="space-y-4">
-                <PromptInput onSubmit={sessionId ? handleRefine : handleGenerate} isLoading={isLoading} />
+                <div className="max-w-3xl mx-auto flex items-center justify-between px-1">
+                    <div className="flex items-center gap-2">
+                        {sessionId ? (
+                            <Badge variant="secondary" className="bg-indigo-100 text-indigo-700 hover:bg-indigo-100 border-indigo-200 gap-1.5 py-1">
+                                <RefreshCw className="h-3.5 w-3.5" />
+                                Refine Mode
+                            </Badge>
+                        ) : (
+                            <Badge variant="secondary" className="bg-emerald-100 text-emerald-700 hover:bg-emerald-100 border-emerald-200 gap-1.5 py-1">
+                                <Sparkles className="h-3.5 w-3.5" />
+                                New Generation
+                            </Badge>
+                        )}
+                        <span className="text-xs text-muted-foreground font-medium">
+                            {sessionId
+                                ? "Refining existing dashboard"
+                                : "Create a new dashboard from scratch"}
+                        </span>
+                    </div>
+
+                    {sessionId && (
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={handleNewDashboard}
+                            className="h-7 text-xs gap-1.5 hover:bg-destructive/5 hover:text-destructive hover:border-destructive/30 transition-colors"
+                        >
+                            <Plus className="h-3.5 w-3.5" />
+                            New Dashboard
+                        </Button>
+                    )}
+                </div>
+
+                <PromptInput
+                    onSubmit={sessionId ? handleRefine : handleGenerate}
+                    isLoading={isLoading}
+                    placeholder={sessionId
+                        ? "Describe how you want to refine this dashboard (e.g., 'Change charts to bar charts', 'Filter only 2024')..."
+                        : "Describe the dashboard you want to create (e.g., 'Analyze sales performance by region for the last 6 months')..."
+                    }
+                />
 
                 {Object.keys(filterState).length > 0 && (
                     <div className="max-w-3xl mx-auto animate-in fade-in slide-in-from-top-1">

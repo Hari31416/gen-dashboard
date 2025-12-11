@@ -478,7 +478,7 @@ export const ChartRenderer: React.FC<ChartRendererProps> = ({
         return (
             <div className="flex flex-col items-center justify-center h-[400px] text-muted-foreground bg-muted/10 rounded-xl border-2 border-dashed border-muted m-4">
                 <p className="font-medium mb-1">No dashboard generated yet</p>
-                <p className="text-sm">Enter a prompt above to start analyzing your data.</p>
+                <p className="text-sm">Enter a prompt above to start analyzing your data. Or see a dashboard from history.</p>
             </div>
         );
     }

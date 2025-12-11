@@ -7,15 +7,21 @@ import { Send } from 'lucide-react';
 interface PromptInputProps {
     onSubmit: (prompt: string) => void;
     isLoading: boolean;
+    placeholder?: string;
+    onClear?: () => void;
 }
 
-export const PromptInput: React.FC<PromptInputProps> = ({ onSubmit, isLoading }) => {
+export const PromptInput: React.FC<PromptInputProps> = ({ onSubmit, isLoading, placeholder, onClear }) => {
     const [prompt, setPrompt] = useState("");
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
         if (prompt.trim() && !isLoading) {
             onSubmit(prompt);
+            if (onClear) {
+                // Optional: clear local state if parent requests
+                setPrompt("");
+            }
         }
     };
 
@@ -33,7 +39,7 @@ export const PromptInput: React.FC<PromptInputProps> = ({ onSubmit, isLoading })
                     value={prompt}
                     onChange={(e) => setPrompt(e.target.value)}
                     onKeyDown={handleKeyDown}
-                    placeholder="Describe the dashboard you want to create (e.g., 'Analyze sales performance by region for the last 6 months')..."
+                    placeholder={placeholder || "Describe the dashboard you want to create (e.g., 'Analyze sales performance by region for the last 6 months')..."}
                     className="min-h-[80px] w-full resize-none border-0 bg-transparent py-4 pl-4 pr-14 focus-visible:ring-0 placeholder:text-muted-foreground/60"
                 />
                 <div className="absolute right-2 bottom-2">
