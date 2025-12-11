@@ -105,24 +105,24 @@ Important:
 async def strategy_agent_node(state: DashboardGraphState) -> Dict[str, Any]:
     """
     Strategy Agent node for dashboard generation.
-    
+
     Analyzes user request and database schema to create chart objectives.
-    
+
     Args:
         state: Current dashboard graph state
-        
+
     Returns:
         Updated state with chart_goals and strategy_reasoning
     """
     start_time = time.time()
-    
+
     user_prompt = state.get("user_prompt", "")
     username = state.get("username", "")
     connection_name = state.get("connection_name", "")
     max_charts = state.get("max_charts", 5)
-    
+
     logger.info(f"Strategy Agent processing request for connection: {connection_name}")
-    
+
     try:
         # Get database context
         db_config = get_db_config(username, connection_name)
@@ -131,21 +131,21 @@ async def strategy_agent_node(state: DashboardGraphState) -> Dict[str, Any]:
                 "error": f"Database configuration not found for {connection_name}",
                 "failed_stage": "strategy",
             }
-        
+
         db_info = get_db_info(username, connection_name)
         if not db_info:
             return {
                 "error": f"Database schema not found for {connection_name}",
                 "failed_stage": "strategy",
             }
-        
+
         relationships = get_db_relationships(username, connection_name)
-        
+
         # Format schema for LLM
         db_description = db_config.get("db_description", "No description provided.")
         formatted_tables = convert_tables_info(db_info)
         formatted_relationships = convert_relationships(relationships)
-        
+
         # Build context message
         context = f"""## User Request
 {user_prompt}
@@ -164,39 +164,41 @@ async def strategy_agent_node(state: DashboardGraphState) -> Dict[str, Any]:
 
 Please analyze this request and create {max_charts} chart objectives for the dashboard.
 """
-        
+
         # Get system prompt
         system_prompt = _get_strategy_system_prompt()
-        
+
         messages = [
             SystemMessage(content=system_prompt),
             HumanMessage(content=context),
         ]
-        
+
         # Call LLM
         llm = get_llm(temperature=0.3)  # Lower temperature for more consistent output
         response = await llm.ainvoke(messages)
         response_text = response.content
-        
+
         logger.debug(f"Strategy Agent response: {response_text[:500]}...")
-        
+
         # Parse JSON response
         chart_goals, reasoning = _parse_strategy_response(response_text)
-        
+
         if not chart_goals:
             return {
                 "error": "Failed to parse chart goals from Strategy Agent response",
                 "failed_stage": "strategy",
             }
-        
+
         # Limit to max_charts
         if len(chart_goals) > max_charts:
             chart_goals = chart_goals[:max_charts]
-        
+
         execution_time = (time.time() - start_time) * 1000
-        
-        logger.info(f"Strategy Agent generated {len(chart_goals)} chart goals in {execution_time:.2f}ms")
-        
+
+        logger.info(
+            f"Strategy Agent generated {len(chart_goals)} chart goals in {execution_time:.2f}ms"
+        )
+
         return {
             "chart_goals": chart_goals,
             "strategy_reasoning": reasoning,
@@ -205,7 +207,7 @@ Please analyze this request and create {max_charts} chart objectives for the das
             "db_relationships": formatted_relationships,
             "db_description": db_description,
         }
-        
+
     except Exception as e:
         logger.exception(f"Strategy Agent failed: {e}")
         return {
@@ -217,18 +219,18 @@ Please analyze this request and create {max_charts} chart objectives for the das
 def _parse_strategy_response(response_text: str) -> tuple[List[Dict[str, Any]], str]:
     """
     Parse the Strategy Agent response to extract chart goals.
-    
+
     Args:
         response_text: Raw LLM response
-        
+
     Returns:
         Tuple of (chart_goals list, reasoning string)
     """
     import re
-    
+
     # Try to extract JSON from code block
     json_match = re.search(r"```(?:json)?\s*(\{.*?\})\s*```", response_text, re.DOTALL)
-    
+
     if json_match:
         json_str = json_match.group(1)
     else:
@@ -239,12 +241,12 @@ def _parse_strategy_response(response_text: str) -> tuple[List[Dict[str, Any]], 
         else:
             logger.error("Could not find JSON in response")
             return [], ""
-    
+
     try:
         parsed = json.loads(json_str)
         chart_goals = parsed.get("chart_goals", [])
         reasoning = parsed.get("reasoning", "")
-        
+
         # Validate chart goals
         validated_goals = []
         for goal in chart_goals:
@@ -252,26 +254,26 @@ def _parse_strategy_response(response_text: str) -> tuple[List[Dict[str, Any]], 
                 # Ensure required fields
                 if not goal.get("chart_id"):
                     goal["chart_id"] = f"chart_{len(validated_goals) + 1}"
-                
+
                 # Validate chart type
                 chart_type = goal.get("chart_type", "bar")
                 valid_types = [t.value for t in ChartType]
                 if chart_type not in valid_types:
                     goal["chart_type"] = "bar"
-                
+
                 # Validate aggregation
                 agg = goal.get("aggregation", "none")
                 valid_aggs = [a.value for a in AggregationType]
                 if agg not in valid_aggs:
                     goal["aggregation"] = "none"
-                
+
                 validated_goals.append(goal)
             except Exception as e:
                 logger.warning(f"Skipping invalid chart goal: {e}")
                 continue
-        
+
         return validated_goals, reasoning
-        
+
     except json.JSONDecodeError as e:
         logger.error(f"Failed to parse JSON: {e}")
         return [], ""

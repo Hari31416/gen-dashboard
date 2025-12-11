@@ -210,28 +210,6 @@ async def read_users_me(current_user: User = Depends(get_current_active_user)):
     return current_user
 
 
-@router.get("/me/usage")
-async def get_my_usage(current_user: User = Depends(get_current_active_user)):
-    """
-    Get current user's usage statistics including token limit info.
-    Returns tokens used, token limit, and percentage used.
-    """
-    try:
-        from services.usage_service import get_user_usage_with_limit
-
-        usage_stats = get_user_usage_with_limit(current_user.username)
-        logger.info(f"User {current_user.username} fetched their usage stats")
-        return usage_stats
-    except Exception as e:
-        logger.error(
-            f"Error fetching usage stats for {current_user.username}: {str(e)}"
-        )
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="An error occurred while fetching usage statistics",
-        )
-
-
 @router.post("/verify")
 async def verify_token(current_user: User = Depends(get_current_active_user)):
     """Verify if a token is valid"""
@@ -488,87 +466,4 @@ async def admin_delete_user(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="An error occurred while deleting user",
-        )
-
-
-@router.get("/admin/usage")
-async def admin_get_usage(current_user: User = Depends(get_current_admin_user)):
-    """
-    Get usage statistics for all users (admin only)
-    """
-    try:
-        from services.usage_service import get_all_users_usage
-
-        usage_stats = get_all_users_usage()
-        logger.info(
-            f"Admin {current_user.username} fetched usage stats for {len(usage_stats)} users"
-        )
-        return usage_stats
-    except Exception as e:
-        logger.error(f"Error fetching usage stats: {str(e)}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="An error occurred while fetching usage statistics",
-        )
-
-
-@router.get("/admin/usage/{username}/breakdown")
-async def admin_get_user_token_breakdown(
-    username: str,
-    group_by: str = "tag",
-    current_user: User = Depends(get_current_admin_user),
-):
-    """
-    Get token usage breakdown for a specific user (admin only)
-
-    Args:
-        username: Username to get breakdown for
-        group_by: How to group breakdown - "tag", "model", or "both"
-    """
-    if group_by not in ["tag", "model", "both"]:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="group_by must be 'tag', 'model', or 'both'",
-        )
-
-    try:
-        from services.usage_service import get_user_token_breakdown
-
-        breakdown = get_user_token_breakdown(username, group_by)
-        logger.info(
-            f"Admin {current_user.username} fetched token breakdown for user {username} (group_by={group_by})"
-        )
-        return breakdown
-    except Exception as e:
-        logger.error(f"Error fetching token breakdown for {username}: {str(e)}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="An error occurred while fetching token breakdown",
-        )
-
-
-@router.get("/admin/usage/daily")
-async def admin_get_daily_usage(
-    days: int = 30,
-    username: Optional[str] = None,
-    current_user: User = Depends(get_current_admin_user),
-):
-    """
-    Get daily usage statistics (admin only)
-    Optionally filter by username
-    """
-    try:
-        from services.usage_service import get_daily_usage_stats
-
-        daily_stats = get_daily_usage_stats(days, username)
-        log_msg = f"Admin {current_user.username} fetched daily usage stats for last {days} days"
-        if username:
-            log_msg += f" for user {username}"
-        logger.info(log_msg)
-        return daily_stats
-    except Exception as e:
-        logger.error(f"Error fetching daily usage stats: {str(e)}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="An error occurred while fetching daily usage statistics",
         )

@@ -114,76 +114,82 @@ Important:
 async def viz_spec_agent_node(state: DashboardGraphState) -> Dict[str, Any]:
     """
     Viz Spec Agent node for dashboard generation.
-    
+
     Creates Vega-Lite specifications for each chart based on data.
-    
+
     Args:
         state: Current dashboard graph state
-        
+
     Returns:
         Updated state with viz_specs
     """
     start_time = time.time()
-    
+
     chart_goals = state.get("chart_goals", [])
     chart_data_results = state.get("chart_data_results", [])
     session_id = state.get("session_id", "")
-    
+
     if not chart_data_results:
         return {
             "error": "No chart data provided to Viz Spec Agent",
             "failed_stage": "viz_spec",
         }
-    
+
     logger.info(f"Viz Spec Agent processing {len(chart_data_results)} charts")
-    
+
     try:
         llm = get_llm(temperature=0.2)
         system_prompt = _get_viz_spec_system_prompt()
-        
+
         # Build list of valid charts to process in parallel
         import asyncio
-        
+
         async def process_chart(data_result):
             chart_id = data_result.get("chart_id", "unknown")
-            
+
             # Skip failed queries
             if data_result.get("error"):
-                logger.warning(f"Skipping {chart_id} due to data error: {data_result['error']}")
+                logger.warning(
+                    f"Skipping {chart_id} due to data error: {data_result['error']}"
+                )
                 return None
-            
+
             # Find matching goal
             goal = next((g for g in chart_goals if g.get("chart_id") == chart_id), None)
             if not goal:
                 logger.warning(f"No goal found for {chart_id}")
                 return None
-            
+
             # Generate viz spec with URL-based data loading
             return await _generate_single_viz_spec(
                 llm, system_prompt, goal, data_result, session_id
             )
-        
+
         # Run all spec generations in parallel
-        results = await asyncio.gather(*[process_chart(dr) for dr in chart_data_results])
-        
+        results = await asyncio.gather(
+            *[process_chart(dr) for dr in chart_data_results]
+        )
+
         # Filter out None results
         viz_specs = [spec for spec in results if spec is not None]
-        
+
         execution_time = (time.time() - start_time) * 1000
-        
+
         if not viz_specs:
             return {
                 "error": "Failed to generate any visualization specifications",
                 "failed_stage": "viz_spec",
             }
-        
-        logger.info(f"Viz Spec Agent generated {len(viz_specs)} specs in {execution_time:.2f}ms")
-        
+
+        logger.info(
+            f"Viz Spec Agent generated {len(viz_specs)} specs in {execution_time:.2f}ms"
+        )
+
         return {
             "viz_specs": viz_specs,
             "viz_time_ms": execution_time,
         }
-        
+
     except Exception as e:
         logger.exception(f"Viz Spec Agent failed: {e}")
         return {
@@ -201,26 +207,26 @@ async def _generate_single_viz_spec(
 ) -> Dict[str, Any]:
     """
     Generate a Vega-Lite spec for a single chart.
-    
+
     Args:
         llm: LLM instance
         system_prompt: System prompt for viz generation
         goal: Chart goal from strategy agent
         data_result: Data from data agent
         session_id: Session ID for URL-based data loading
-        
+
     Returns:
         SingleVizSpec as dict, or None if failed
     """
     chart_id = goal.get("chart_id", "unknown")
     chart_type = goal.get("chart_type", "bar")
     title = goal.get("title", "Chart")
-    
+
     # Prepare data sample for context (limit to 10 rows)
     data = data_result.get("data", [])
     columns = data_result.get("columns", [])
     sample_data = data[:10] if len(data) > 10 else data
-    
+
     context = f"""## Chart Goal
 - Chart ID: {chart_id}
 - Type: {chart_type}
@@ -243,36 +249,36 @@ Columns: {', '.join(columns)}
 
 Generate a Vega-Lite specification for this chart.
 """
-    
+
     messages = [
         SystemMessage(content=system_prompt),
         HumanMessage(content=context),
     ]
-    
+
     try:
         response = await llm.ainvoke(messages)
         response_text = response.content
-        
+
         # Parse the spec and use URL-based data loading
         spec = _parse_viz_spec_response(response_text, chart_id, data, goal, session_id)
-        
+
         if spec:
             spec["title"] = title
             return spec
-        
+
     except Exception as e:
         logger.error(f"Failed to generate viz spec for {chart_id}: {e}")
-    
+
     # Fallback: generate a basic spec
     return _generate_fallback_viz_spec(goal, data_result)
 
 
 def _parse_viz_spec_response(
-    response_text: str, 
-    chart_id: str, 
+    response_text: str,
+    chart_id: str,
     data: List[Dict],
     goal: Dict[str, Any] = None,
-    session_id: str = ""
+    session_id: str = "",
 ) -> Dict[str, Any]:
     """Parse Vega-Lite spec from LLM response and use URL-based data loading."""
     import re
@@ -312,7 +318,9 @@ def _parse_viz_spec_response(
             # Transform to proper geoshape spec with GeoJSON
             logger.info(f"Applying geoshape transformation for {chart_id}")
             spec = _transform_to_geoshape_spec(spec, data, goal, chart_id, session_id)
-            logger.info(f"Geoshape spec has projection={spec.get('projection')}, transform={bool(spec.get('transform'))}")
+            logger.info(
+                f"Geoshape spec has projection={spec.get('projection')}, transform={bool(spec.get('transform'))}"
+            )
         elif mark_type == "arc":
             # Ensure arc (pie) charts have theta/color encoding, not x/y
             encoding = spec.get("encoding", {})
@@ -369,6 +377,7 @@ def _parse_viz_spec_response(
             if session_id:
                 # Use full backend URL for Vega to fetch data
                 from env import BACKEND_URL
+
                 spec["data"] = {
                     "url": f"{BACKEND_URL}/dashboard/{session_id}/chart/{chart_id}/data"
                 }
@@ -390,15 +399,15 @@ def _parse_viz_spec_response(
 
 
 def _transform_to_geoshape_spec(
-    spec: Dict[str, Any], 
-    data: List[Dict], 
+    spec: Dict[str, Any],
+    data: List[Dict],
     goal: Dict[str, Any] = None,
     chart_id: str = "",
-    session_id: str = ""
+    session_id: str = "",
 ) -> Dict[str, Any]:
     """
     Transform an LLM-generated geoshape spec to include proper GeoJSON loading.
-    
+
     The LLM generates the encoding but not the GeoJSON URL/transform structure.
     This function adds the necessary data source and lookup transform.
     """
@@ -458,7 +467,9 @@ def _transform_to_geoshape_spec(
 
     # Build data source for lookup transform - use URL if session_id available
     if session_id and chart_id:
-        lookup_data = {"url": f"{BACKEND_URL}/dashboard/{session_id}/chart/{chart_id}/data"}
+        lookup_data = {
+            "url": f"{BACKEND_URL}/dashboard/{session_id}/chart/{chart_id}/data"
+        }
     else:
         lookup_data = {"values": data}
 
@@ -530,7 +541,9 @@ def _transform_to_geoshape_spec(
     return transformed_spec
 
 
-def _generate_fallback_viz_spec(goal: Dict[str, Any], data_result: Dict[str, Any]) -> Dict[str, Any]:
+def _generate_fallback_viz_spec(
+    goal: Dict[str, Any], data_result: Dict[str, Any]
+) -> Dict[str, Any]:
     """Generate a basic fallback visualization spec."""
     from services.geojson_service import get_geojson_config
 
@@ -560,7 +573,9 @@ def _generate_fallback_viz_spec(goal: Dict[str, Any], data_result: Dict[str, Any
 
     # Determine encoding based on columns
     x_field = goal.get("x_field") or (columns[0] if columns else "x")
-    y_field = goal.get("y_field") or (columns[1] if len(columns) > 1 else columns[0] if columns else "y")
+    y_field = goal.get("y_field") or (
+        columns[1] if len(columns) > 1 else columns[0] if columns else "y"
+    )
 
     # Detect field types
     def infer_type(field_name: str, sample_data: List[Dict]) -> str:
@@ -589,8 +604,16 @@ def _generate_fallback_viz_spec(goal: Dict[str, Any], data_result: Dict[str, Any
         }
     else:
         encoding = {
-            "x": {"field": x_field, "type": x_type, "title": x_field.replace("_", " ").title()},
-            "y": {"field": y_field, "type": y_type, "title": y_field.replace("_", " ").title()},
+            "x": {
+                "field": x_field,
+                "type": x_type,
+                "title": x_field.replace("_", " ").title(),
+            },
+            "y": {
+                "field": y_field,
+                "type": y_type,
+                "title": y_field.replace("_", " ").title(),
+            },
         }
 
         # Add color if specified
@@ -609,10 +632,12 @@ def _generate_fallback_viz_spec(goal: Dict[str, Any], data_result: Dict[str, Any
     }
 
 
-def _generate_geoshape_spec(goal: Dict[str, Any], data_result: Dict[str, Any]) -> Dict[str, Any]:
+def _generate_geoshape_spec(
+    goal: Dict[str, Any], data_result: Dict[str, Any]
+) -> Dict[str, Any]:
     """
     Generate a Vega-Lite geoshape (choropleth map) specification.
-    
+
     Uses external GeoJSON with lookup transform to join data.
     """
     from services.geojson_service import get_geojson_config
@@ -640,7 +665,9 @@ def _generate_geoshape_spec(goal: Dict[str, Any], data_result: Dict[str, Any]) -
                 value_field = col
                 break
         if not value_field:
-            value_field = columns[1] if len(columns) > 1 else columns[0] if columns else "value"
+            value_field = (
+                columns[1] if len(columns) > 1 else columns[0] if columns else "value"
+            )
 
     # If no geography_field specified, try to detect
     if not geography_field:

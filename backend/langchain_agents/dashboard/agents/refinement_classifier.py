@@ -113,24 +113,24 @@ async def classify_refinement_intent(
 ) -> RefinementIntent:
     """
     Classify user feedback into refinement actions.
-    
+
     Args:
         user_feedback: Natural language feedback from user
         current_dashboard: Current dashboard spec
         chart_goals: Original chart goals from strategy agent
         target_chart_hint: Optional hint about which chart to target
-        
+
     Returns:
         RefinementIntent with classified actions
     """
     start_time = time.time()
-    
+
     logger.info(f"Classifying refinement intent: {user_feedback[:100]}...")
-    
+
     try:
         # Build context about current dashboard
         dashboard_summary = _build_dashboard_summary(current_dashboard, chart_goals)
-        
+
         # Build the prompt
         context = f"""## User Feedback
 {user_feedback}
@@ -142,27 +142,29 @@ async def classify_refinement_intent(
 
 Analyze the user's feedback and classify their refinement intent.
 """
-        
+
         messages = [
             SystemMessage(content=REFINEMENT_CLASSIFIER_PROMPT),
             HumanMessage(content=context),
         ]
-        
+
         # Call LLM
         llm = get_llm(temperature=0.1)  # Very low temperature for classification
         response = await llm.ainvoke(messages)
         response_text = response.content
-        
+
         logger.debug(f"Classifier response: {response_text[:500]}...")
-        
+
         # Parse the response
         intent = _parse_classifier_response(response_text)
-        
+
         execution_time = (time.time() - start_time) * 1000
-        logger.info(f"Intent classified in {execution_time:.2f}ms: {len(intent.actions)} actions, clarification={intent.requires_clarification}")
-        
+        logger.info(
+            f"Intent classified in {execution_time:.2f}ms: {len(intent.actions)} actions, clarification={intent.requires_clarification}"
+        )
+
         return intent
-        
+
     except Exception as e:
         logger.exception(f"Intent classification failed: {e}")
         # Return a safe fallback - ask for clarification
@@ -170,52 +172,54 @@ Analyze the user's feedback and classify their refinement intent.
             actions=[],
             requires_clarification=True,
             clarification_question="I couldn't understand your request. Could you please rephrase what changes you'd like to make to the dashboard?",
-            reasoning=f"Classification error: {str(e)}"
+            reasoning=f"Classification error: {str(e)}",
         )
 
 
-def _build_dashboard_summary(dashboard: Dict[str, Any], chart_goals: List[Dict[str, Any]]) -> str:
+def _build_dashboard_summary(
+    dashboard: Dict[str, Any], chart_goals: List[Dict[str, Any]]
+) -> str:
     """Build a summary of the current dashboard for the classifier."""
     lines = []
-    
+
     # Dashboard title
     title = dashboard.get("title", "Untitled Dashboard")
     lines.append(f"Dashboard Title: {title}")
     lines.append("")
-    
+
     # List charts
     individual_specs = dashboard.get("individual_specs", [])
     lines.append("Charts in Dashboard:")
-    
+
     for i, spec in enumerate(individual_specs):
         chart_id = spec.get("chart_id", f"chart_{i+1}")
         chart_title = spec.get("title", "Untitled")
-        
+
         # Get chart type from mark
         mark = spec.get("mark", {})
         if isinstance(mark, str):
             chart_type = mark
         else:
             chart_type = mark.get("type", "unknown")
-        
+
         # Find matching goal for more context
         goal_info = ""
         for goal in chart_goals:
             if goal.get("chart_id") == chart_id:
                 goal_info = f" - {goal.get('description', '')}"
                 break
-        
+
         lines.append(f"  - {chart_id}: {chart_title} ({chart_type}){goal_info}")
-    
+
     return "\n".join(lines)
 
 
 def _parse_classifier_response(response_text: str) -> RefinementIntent:
     """Parse the LLM response into a RefinementIntent."""
-    
+
     # Try to extract JSON from code block
     json_match = re.search(r"```(?:json)?\s*(\{.*?\})\s*```", response_text, re.DOTALL)
-    
+
     if json_match:
         json_str = json_match.group(1)
     else:
@@ -228,25 +232,25 @@ def _parse_classifier_response(response_text: str) -> RefinementIntent:
             return RefinementIntent(
                 requires_clarification=True,
                 clarification_question="I couldn't process your request. Could you try rephrasing?",
-                reasoning="Failed to parse classifier response"
+                reasoning="Failed to parse classifier response",
             )
-    
+
     try:
         parsed = json.loads(json_str)
-        
+
         # Parse actions
         actions = []
         for action_data in parsed.get("actions", []):
             try:
                 action_type_str = action_data.get("action_type", "")
-                
+
                 # Validate action type
                 try:
                     action_type = RefinementActionType(action_type_str)
                 except ValueError:
                     logger.warning(f"Invalid action type: {action_type_str}")
                     continue
-                
+
                 action = RefinementAction(
                     action_type=action_type,
                     target_chart_id=action_data.get("target_chart_id"),
@@ -257,18 +261,18 @@ def _parse_classifier_response(response_text: str) -> RefinementIntent:
             except Exception as e:
                 logger.warning(f"Failed to parse action: {e}")
                 continue
-        
+
         return RefinementIntent(
             actions=actions,
             requires_clarification=parsed.get("requires_clarification", False),
             clarification_question=parsed.get("clarification_question"),
             reasoning=parsed.get("reasoning", ""),
         )
-        
+
     except json.JSONDecodeError as e:
         logger.error(f"Failed to parse classifier JSON: {e}")
         return RefinementIntent(
             requires_clarification=True,
             clarification_question="I couldn't process your request. Could you try rephrasing?",
-            reasoning=f"JSON parse error: {str(e)}"
+            reasoning=f"JSON parse error: {str(e)}",
         )

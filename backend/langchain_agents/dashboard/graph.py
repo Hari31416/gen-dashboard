@@ -44,14 +44,14 @@ def _should_continue_after_data(state: DashboardGraphState) -> str:
     if state.get("error"):
         logger.warning(f"Data stage failed: {state['error']}")
         return "error"
-    
+
     results = state.get("chart_data_results", [])
     successful = [r for r in results if not r.get("error")]
-    
+
     if not successful:
         logger.warning("No successful data results")
         return "error"
-    
+
     return "continue"
 
 
@@ -77,23 +77,23 @@ def _error_handler_node(state: DashboardGraphState) -> Dict[str, Any]:
 def create_dashboard_graph() -> StateGraph:
     """
     Create the LangGraph workflow for dashboard generation.
-    
+
     Returns:
         Compiled StateGraph
     """
     # Create graph with state schema
     workflow = StateGraph(DashboardGraphState)
-    
+
     # Add nodes
     workflow.add_node("strategy", strategy_agent_node)
     workflow.add_node("data", data_agent_node)
     workflow.add_node("viz_spec", viz_spec_agent_node)
     workflow.add_node("layout", layout_agent_node)
     workflow.add_node("error_handler", _error_handler_node)
-    
+
     # Set entry point
     workflow.set_entry_point("strategy")
-    
+
     # Add conditional edges after each stage
     workflow.add_conditional_edges(
         "strategy",
@@ -101,31 +101,31 @@ def create_dashboard_graph() -> StateGraph:
         {
             "continue": "data",
             "error": "error_handler",
-        }
+        },
     )
-    
+
     workflow.add_conditional_edges(
         "data",
         _should_continue_after_data,
         {
             "continue": "viz_spec",
             "error": "error_handler",
-        }
+        },
     )
-    
+
     workflow.add_conditional_edges(
         "viz_spec",
         _should_continue_after_viz,
         {
             "continue": "layout",
             "error": "error_handler",
-        }
+        },
     )
-    
+
     # Layout and error_handler go to END
     workflow.add_edge("layout", END)
     workflow.add_edge("error_handler", END)
-    
+
     return workflow.compile()
 
 
@@ -151,7 +151,7 @@ async def run_dashboard_generation(
 ) -> Dict[str, Any]:
     """
     Run the full dashboard generation pipeline.
-    
+
     Args:
         user_prompt: Natural language request
         username: User's username
@@ -159,18 +159,18 @@ async def run_dashboard_generation(
         session_id: Optional session ID (generated if not provided)
         max_charts: Maximum charts to generate (1-10)
         theme: Dashboard theme
-        
+
     Returns:
         Final dashboard state with dashboard_spec or error
     """
     start_time = time.time()
-    
+
     # Generate session ID if not provided
     if not session_id:
         session_id = str(uuid.uuid4())
-    
+
     logger.info(f"Starting dashboard generation for session {session_id}")
-    
+
     # Create initial state
     initial_state = create_initial_dashboard_state(
         user_prompt=user_prompt,
@@ -181,25 +181,25 @@ async def run_dashboard_generation(
         theme=theme,
     )
     initial_state["start_time"] = start_time
-    
+
     # Get graph and run
     graph = get_dashboard_graph()
-    
+
     try:
         # Run the graph
         final_state = await graph.ainvoke(initial_state)
-        
+
         # Calculate total time
         total_time = (time.time() - start_time) * 1000
         final_state["total_time_ms"] = total_time
-        
+
         if final_state.get("error"):
             logger.error(f"Dashboard generation failed: {final_state['error']}")
         else:
             logger.info(f"Dashboard generation completed in {total_time:.2f}ms")
-        
+
         return final_state
-        
+
     except Exception as e:
         logger.exception(f"Dashboard generation failed with exception: {e}")
         return {
@@ -218,15 +218,15 @@ async def run_dashboard_refresh(
 ) -> Dict[str, Any]:
     """
     Refresh dashboard data by re-executing stored SQL queries.
-    
+
     This does NOT use the LLM - it simply re-runs the saved queries.
-    
+
     Args:
         session_id: Session ID
         username: Username
         connection_name: Database connection
         sql_queries: List of {chart_id, sql_query} dicts
-        
+
     Returns:
         Updated chart data results
     """

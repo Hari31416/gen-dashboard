@@ -20,18 +20,18 @@ async def handle_rerun_sql(
 ) -> Dict[str, Any]:
     """
     Re-execute existing SQL queries without modification.
-    
+
     Args:
         action: RefinementAction with target_chart_id
         updated_dashboard: Current dashboard spec to modify
         updated_sql_queries: Current SQL queries
         connection_string: Database connection string
-        
+
     Returns:
         Dict with updated individual_specs
     """
     from langchain_agents.dashboard.agents.data_agent import _execute_query_safe
-    
+
     target_id = action.target_chart_id
     queries_to_run = (
         updated_sql_queries
@@ -66,7 +66,7 @@ async def handle_modify_sql(
 ) -> Dict[str, Any]:
     """
     Modify SQL query using the Data Agent with previous query as context.
-    
+
     Args:
         action: RefinementAction with target_chart_id
         updated_dashboard: Current dashboard spec
@@ -77,7 +77,7 @@ async def handle_modify_sql(
         username: Username
         connection_name: Database connection name
         session_id: Session ID
-        
+
     Returns:
         Dict with updated sql_queries and individual_specs
     """
@@ -179,7 +179,11 @@ async def handle_change_chart_type(
         if spec.get("chart_id") == target_id:
             # Get current mark info for logging
             current_mark = spec.get("mark", {})
-            current_type = current_mark.get("type") if isinstance(current_mark, dict) else current_mark
+            current_type = (
+                current_mark.get("type")
+                if isinstance(current_mark, dict)
+                else current_mark
+            )
 
             # Update mark type
             if isinstance(spec.get("mark"), dict):
@@ -245,7 +249,9 @@ async def handle_change_chart_type(
                         f"Transformed encoding for {target_id}: theta/color -> x/y"
                     )
 
-            logger.info(f"Changed {target_id} chart type from {current_type} to {new_type}")
+            logger.info(
+                f"Changed {target_id} chart type from {current_type} to {new_type}"
+            )
             break
 
     return {"individual_specs": updated_dashboard.get("individual_specs", [])}
@@ -259,58 +265,62 @@ async def handle_change_encoding(
 ) -> Dict[str, Any]:
     """
     Change data encoding (x/y fields, colors, grouping).
-    
+
     Includes previous encoding in logs for context.
-    
+
     Args:
         action: RefinementAction with target_chart_id and parameters
         updated_dashboard: Current dashboard spec
         updated_chart_goals: Chart goals for context
         user_feedback: User's feedback
-        
+
     Returns:
         Dict with updated individual_specs
     """
     target_id = action.target_chart_id
-    
+
     for spec in updated_dashboard.get("individual_specs", []):
         if spec.get("chart_id") == target_id:
             encoding = spec.get("encoding", {})
-            
+
             # Log previous encoding for context
             prev_x = encoding.get("x", {}).get("field", "N/A")
             prev_y = encoding.get("y", {}).get("field", "N/A")
             prev_color = encoding.get("color", {}).get("field", "N/A")
-            
-            logger.info(f"Previous encoding for {target_id}: x={prev_x}, y={prev_y}, color={prev_color}")
-            
+
+            logger.info(
+                f"Previous encoding for {target_id}: x={prev_x}, y={prev_y}, color={prev_color}"
+            )
+
             # Apply changes from parameters
             if action.parameters.get("x_field"):
                 if "x" not in encoding:
                     encoding["x"] = {"type": "nominal"}
                 encoding["x"]["field"] = action.parameters["x_field"]
-                
+
             if action.parameters.get("y_field"):
                 if "y" not in encoding:
                     encoding["y"] = {"type": "quantitative"}
                 encoding["y"]["field"] = action.parameters["y_field"]
-                
+
             if action.parameters.get("color_field"):
                 encoding["color"] = {
                     "field": action.parameters["color_field"],
-                    "type": "nominal"
+                    "type": "nominal",
                 }
-            
+
             if action.parameters.get("aggregation"):
                 if "y" in encoding:
                     encoding["y"]["aggregate"] = action.parameters["aggregation"]
-            
+
             spec["encoding"] = encoding
-            
+
             new_x = encoding.get("x", {}).get("field", "N/A")
             new_y = encoding.get("y", {}).get("field", "N/A")
             new_color = encoding.get("color", {}).get("field", "N/A")
-            logger.info(f"Updated encoding for {target_id}: x={new_x}, y={new_y}, color={new_color}")
+            logger.info(
+                f"Updated encoding for {target_id}: x={new_x}, y={new_y}, color={new_color}"
+            )
             break
 
     return {"individual_specs": updated_dashboard.get("individual_specs", [])}
@@ -322,26 +332,28 @@ async def handle_change_title(
 ) -> Dict[str, Any]:
     """
     Update chart or dashboard title.
-    
+
     Args:
         action: RefinementAction with target_chart_id and parameters.new_title
         updated_dashboard: Current dashboard spec
-        
+
     Returns:
         Dict with updated title and/or individual_specs
     """
     new_title = action.parameters.get("new_title", "")
-    
+
     if not new_title:
         return {}
-    
+
     if action.target_chart_id:
         # Update specific chart title
         for spec in updated_dashboard.get("individual_specs", []):
             if spec.get("chart_id") == action.target_chart_id:
                 old_title = spec.get("title", "Untitled")
                 spec["title"] = new_title
-                logger.info(f"Updated title for {action.target_chart_id}: '{old_title}' -> '{new_title}'")
+                logger.info(
+                    f"Updated title for {action.target_chart_id}: '{old_title}' -> '{new_title}'"
+                )
                 break
         return {"individual_specs": updated_dashboard.get("individual_specs", [])}
     else:
@@ -364,7 +376,7 @@ async def handle_change_layout(
 ) -> Dict[str, Any]:
     """
     Rearrange or resize charts using the Layout Agent.
-    
+
     Args:
         action: RefinementAction
         updated_dashboard: Current dashboard spec
@@ -374,16 +386,16 @@ async def handle_change_layout(
         username: Username
         connection_name: Connection name
         session_id: Session ID
-        
+
     Returns:
         Dict with updated layout_config
     """
     from langchain_agents.dashboard.agents.layout_agent import layout_agent_node
     from langchain_agents.dashboard.state import create_initial_dashboard_state
-    
+
     # Include current layout in context
     current_layout = updated_dashboard.get("layout_config", {})
-    
+
     context_prompt = f"""{original_prompt}
 
 ## Current Layout Configuration
@@ -464,7 +476,9 @@ async def handle_add_chart(
         return {}
 
     # Generate new chart ID based on max existing ID
-    existing_ids = [s.get("chart_id", "") for s in updated_dashboard.get("individual_specs", [])]
+    existing_ids = [
+        s.get("chart_id", "") for s in updated_dashboard.get("individual_specs", [])
+    ]
     max_num = 0
     for eid in existing_ids:
         if eid.startswith("chart_"):
@@ -482,15 +496,17 @@ async def handle_add_chart(
     # Add to layout
     if updated_dashboard.get("layout_config"):
         num_charts = len(updated_dashboard["individual_specs"])
-        updated_dashboard["layout_config"]["layout"].append({
-            "i": new_id,
-            "x": ((num_charts - 1) % 2) * 6,
-            "y": ((num_charts - 1) // 2) * 3,
-            "w": 6,
-            "h": 3,
-            "minW": 3,
-            "minH": 2,
-        })
+        updated_dashboard["layout_config"]["layout"].append(
+            {
+                "i": new_id,
+                "x": ((num_charts - 1) % 2) * 6,
+                "y": ((num_charts - 1) // 2) * 3,
+                "w": 6,
+                "h": 3,
+                "minW": 3,
+                "minH": 2,
+            }
+        )
 
     # Add SQL query
     if new_queries:
@@ -542,21 +558,22 @@ async def handle_remove_chart(
 
     # Remove from individual_specs
     updated_dashboard["individual_specs"] = [
-        s for s in updated_dashboard.get("individual_specs", [])
+        s
+        for s in updated_dashboard.get("individual_specs", [])
         if s.get("chart_id") != chart_id
     ]
 
     # Remove from layout
     if updated_dashboard.get("layout_config"):
         updated_dashboard["layout_config"]["layout"] = [
-            l for l in updated_dashboard["layout_config"].get("layout", [])
+            l
+            for l in updated_dashboard["layout_config"].get("layout", [])
             if l.get("i") != chart_id
         ]
 
     # Remove from sql_queries
     updated_sql_queries[:] = [
-        q for q in updated_sql_queries
-        if q.get("chart_id") != chart_id
+        q for q in updated_sql_queries if q.get("chart_id") != chart_id
     ]
 
     # Remove from chart_goals
@@ -585,24 +602,24 @@ async def handle_change_theme(
 ) -> Dict[str, Any]:
     """
     Change the dashboard theme/styling.
-    
+
     Note: Full theme implementation would require viz agent updates.
-    
+
     Args:
         action: RefinementAction with parameters.theme_description
         updated_dashboard: Current dashboard spec
-        
+
     Returns:
         Dict with any theme-related updates
     """
     theme_desc = action.parameters.get("theme_description", "")
-    
+
     # For now, we just log this - full theme implementation would require viz agent
     logger.info(f"Theme change requested: {theme_desc} (basic implementation)")
-    
+
     # TODO: Implement full theme changes via viz agent
     # For now, we could at least update config
-    
+
     return {}
 
 
@@ -618,7 +635,7 @@ async def handle_full_redesign(
 ) -> Dict[str, Any]:
     """
     Complete dashboard redesign using full pipeline.
-    
+
     Args:
         updated_dashboard: Current dashboard (will be replaced)
         updated_sql_queries: Current queries (will be replaced)
@@ -628,12 +645,12 @@ async def handle_full_redesign(
         username: Username
         connection_name: Connection name
         session_id: Session ID
-        
+
     Returns:
         Dict with complete new dashboard_spec and sql_queries
     """
     from langchain_agents.dashboard.graph import run_dashboard_generation
-    
+
     full_result = await run_dashboard_generation(
         user_prompt=f"{original_prompt}\n\nRedesign: {user_feedback}",
         username=username,
@@ -648,7 +665,7 @@ async def handle_full_redesign(
 
     new_dashboard = full_result.get("dashboard_spec", {})
     new_sql_queries = new_dashboard.get("sql_queries", [])
-    
+
     logger.info("Full dashboard redesign completed")
 
     return {

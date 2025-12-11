@@ -62,10 +62,10 @@ async def execute_refinement_actions(
 ) -> Dict[str, Any]:
     """
     Execute refinement actions with parallel execution where possible.
-    
+
     Groups actions by type and executes parallelizable actions concurrently,
     while sequential actions are processed in order.
-    
+
     Args:
         session_id: Session ID
         username: Username
@@ -76,7 +76,7 @@ async def execute_refinement_actions(
         sql_queries: Current SQL queries
         user_feedback: User's feedback text
         original_prompt: Original generation prompt
-        
+
     Returns:
         Dict with updated dashboard_spec and sql_queries
     """
@@ -124,7 +124,9 @@ async def execute_refinement_actions(
             }
 
         # Group actions by parallelizability
-        parallel_actions = [a for a in actions if a.action_type in PARALLELIZABLE_ACTIONS]
+        parallel_actions = [
+            a for a in actions if a.action_type in PARALLELIZABLE_ACTIONS
+        ]
         sequential_actions = [a for a in actions if a.action_type in SEQUENTIAL_ACTIONS]
 
         # =====================================================================
@@ -146,7 +148,10 @@ async def execute_refinement_actions(
                 elif action.action_type == RefinementActionType.RERUN_SQL:
                     parallel_tasks.append(
                         handle_rerun_sql(
-                            action, updated_dashboard, updated_sql_queries, connection_string
+                            action,
+                            updated_dashboard,
+                            updated_sql_queries,
+                            connection_string,
                         )
                     )
 
@@ -239,7 +244,9 @@ async def execute_refinement_actions(
                         updated_chart_goals = result["chart_goals"]
 
             except Exception as e:
-                logger.error(f"Sequential action {action.action_type.value} failed: {e}")
+                logger.error(
+                    f"Sequential action {action.action_type.value} failed: {e}"
+                )
                 # Continue with other actions
 
         total_time = (time.time() - start_time) * 1000

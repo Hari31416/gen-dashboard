@@ -26,10 +26,10 @@ def get_mongo_client() -> MongoClient:
 def get_dashboard_sessions_collection(username: str) -> Collection:
     """
     Get the dashboard sessions collection for a user.
-    
+
     Args:
         username: Username
-        
+
     Returns:
         MongoDB collection for dashboard_sessions
     """
@@ -50,7 +50,7 @@ def save_dashboard_session(
 ) -> Dict[str, Any]:
     """
     Save a dashboard generation session.
-    
+
     Args:
         username: User's username
         session_id: Unique session identifier
@@ -60,16 +60,16 @@ def save_dashboard_session(
         chart_goals: Chart goals from strategy agent
         sql_queries: SQL queries for refresh
         generation_time_ms: Total generation time
-        
+
     Returns:
         Saved session document
     """
     collection = get_dashboard_sessions_collection(username)
-    
+
     # Strip inline data from individual_specs to reduce storage size
     # Data will be fetched via URL endpoint instead
     cleaned_dashboard_spec = _strip_inline_data(dashboard_spec)
-    
+
     session_doc = {
         "session_id": session_id,
         "user_prompt": user_prompt,
@@ -82,14 +82,14 @@ def save_dashboard_session(
         "updated_at": datetime.utcnow(),
         "refinement_history": [],
     }
-    
+
     # Upsert to handle updates
     collection.update_one(
         {"session_id": session_id},
         {"$set": _serialize_for_mongo(session_doc)},
         upsert=True,
     )
-    
+
     logger.info(f"Saved dashboard session: {session_id}")
     return session_doc
 
@@ -97,12 +97,13 @@ def save_dashboard_session(
 def _strip_inline_data(dashboard_spec: Dict[str, Any]) -> Dict[str, Any]:
     """
     Remove inline data.values from specs to reduce MongoDB storage.
-    
+
     Specs will use URL-based data loading instead.
     """
     import copy
+
     spec = copy.deepcopy(dashboard_spec)
-    
+
     # Strip from individual_specs
     for individual_spec in spec.get("individual_specs", []):
         if "data" in individual_spec:
@@ -115,7 +116,7 @@ def _strip_inline_data(dashboard_spec: Dict[str, Any]) -> Dict[str, Any]:
             elif isinstance(data, dict) and "url" in data:
                 # URL-based - keep as is
                 pass
-    
+
     # Strip from vega_lite_spec (concat charts)
     for key in ["hconcat", "vconcat", "concat"]:
         if key in spec.get("vega_lite_spec", {}):
@@ -123,7 +124,7 @@ def _strip_inline_data(dashboard_spec: Dict[str, Any]) -> Dict[str, Any]:
                 if "data" in chart and isinstance(chart["data"], dict):
                     if "values" in chart["data"]:
                         chart["data"]["values"] = []  # Placeholder
-    
+
     return spec
 
 
@@ -133,7 +134,7 @@ def _serialize_for_mongo(obj: Any) -> Any:
     Handles datetime.date, datetime.datetime, and other types.
     """
     import datetime
-    
+
     if isinstance(obj, datetime.datetime):
         return obj  # MongoDB handles datetime.datetime natively
     elif isinstance(obj, datetime.date):
@@ -142,7 +143,7 @@ def _serialize_for_mongo(obj: Any) -> Any:
         return {key: _serialize_for_mongo(value) for key, value in obj.items()}
     elif isinstance(obj, list):
         return [_serialize_for_mongo(item) for item in obj]
-    elif hasattr(obj, '__dict__'):
+    elif hasattr(obj, "__dict__"):
         # Handle Pydantic models or other objects
         return _serialize_for_mongo(obj.__dict__)
     else:
@@ -155,22 +156,22 @@ def get_dashboard_session(
 ) -> Optional[Dict[str, Any]]:
     """
     Retrieve a dashboard session.
-    
+
     Args:
         username: User's username
         session_id: Session ID to retrieve
-        
+
     Returns:
         Session document or None if not found
     """
     collection = get_dashboard_sessions_collection(username)
-    
+
     session = collection.find_one({"session_id": session_id})
-    
+
     if session:
         # Remove MongoDB _id for JSON serialization
         session.pop("_id", None)
-        
+
     return session
 
 
@@ -232,35 +233,37 @@ def update_dashboard_layout(
 ) -> bool:
     """
     Update only the layout configuration for a dashboard session.
-    
+
     This is called when the user customizes the layout from the frontend.
-    
+
     Args:
         username: User's username
         session_id: Session ID
         layout_config: New layout configuration (react-grid-layout format)
-        
+
     Returns:
         True if updated, False if not found
     """
     collection = get_dashboard_sessions_collection(username)
-    
+
     # Mark layout as custom since user modified it
     layout_config["custom"] = True
-    
+
     update_doc = {
         "$set": {
             "dashboard_spec.layout_config": layout_config,
             "updated_at": datetime.utcnow(),
         }
     }
-    
+
     result = collection.update_one(
         {"session_id": session_id},
         update_doc,
     )
-    
-    logger.info(f"Updated layout for session {session_id}: modified={result.modified_count > 0}")
+
+    logger.info(
+        f"Updated layout for session {session_id}: modified={result.modified_count > 0}"
+    )
     return result.modified_count > 0
 
 
@@ -271,17 +274,17 @@ def list_dashboard_sessions(
 ) -> List[Dict[str, Any]]:
     """
     List dashboard sessions for a user.
-    
+
     Args:
         username: User's username
         limit: Maximum sessions to return
         skip: Number of sessions to skip (for pagination)
-        
+
     Returns:
         List of session documents (without full specs for efficiency)
     """
     collection = get_dashboard_sessions_collection(username)
-    
+
     # Only return summary fields, not full specs
     projection = {
         "_id": 0,
@@ -293,14 +296,11 @@ def list_dashboard_sessions(
         "created_at": 1,
         "updated_at": 1,
     }
-    
+
     sessions = list(
-        collection.find({}, projection)
-        .sort("created_at", -1)
-        .skip(skip)
-        .limit(limit)
+        collection.find({}, projection).sort("created_at", -1).skip(skip).limit(limit)
     )
-    
+
     return sessions
 
 
@@ -310,16 +310,16 @@ def delete_dashboard_session(
 ) -> bool:
     """
     Delete a dashboard session.
-    
+
     Args:
         username: User's username
         session_id: Session ID to delete
-        
+
     Returns:
         True if deleted, False if not found
     """
     collection = get_dashboard_sessions_collection(username)
-    
+
     result = collection.delete_one({"session_id": session_id})
-    
+
     return result.deleted_count > 0

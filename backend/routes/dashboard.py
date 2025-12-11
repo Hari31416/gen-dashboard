@@ -6,7 +6,6 @@ All endpoints require authentication.
 """
 
 import uuid
-from typing import Optional, List
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import JSONResponse
 
@@ -17,10 +16,16 @@ from langchain_agents.dashboard.models import (
     DashboardRefreshRequest,
     DashboardResponse,
     LayoutUpdateRequest,
+    DashboardFilterRequest,
+    LayoutConfig,
+    ChartLayoutPosition,
+    ComposedDashboardSpec,
 )
+from langchain_agents.dashboard.filter_utils import apply_filters_to_sql
 from langchain_agents.dashboard.graph import (
     run_dashboard_generation,
     run_dashboard_refresh,
+    run_selective_refinement,
 )
 from services.dashboard.session_service import (
     save_dashboard_session,
@@ -29,6 +34,9 @@ from services.dashboard.session_service import (
     update_dashboard_layout,
     list_dashboard_sessions,
     delete_dashboard_session,
+)
+from langchain_agents.dashboard.agents.refinement_classifier import (
+    classify_refinement_intent,
 )
 from utilities import create_simple_logger
 
@@ -41,6 +49,7 @@ router = APIRouter(prefix="/dashboard", tags=["dashboard"])
 # Chart Data Endpoint (URL-based data loading)
 # =============================================================================
 
+
 @router.get("/{session_id}/chart/{chart_id}/data")
 async def get_chart_data(
     session_id: str,
@@ -49,15 +58,15 @@ async def get_chart_data(
 ):
     """
     Get fresh data for a specific chart by executing its stored SQL query.
-    
+
     This endpoint requires authentication via Bearer token.
     The frontend configures Vega with a custom loader that includes the auth header.
-    
+
     Returns:
         JSON array of data records
     """
     username = current_user.username
-    
+
     # Get session for this user
     session = get_dashboard_session(username, session_id)
     if not session:
@@ -65,9 +74,9 @@ async def get_chart_data(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Session {session_id} not found",
         )
-    
+
     connection_name = session.get("connection_name")
-    
+
     # Find the SQL query for this chart
     sql_queries = session.get("sql_queries", [])
     sql_query = None
@@ -75,17 +84,20 @@ async def get_chart_data(
         if q.get("chart_id") == chart_id:
             sql_query = q.get("sql_query")
             break
-    
+
     if not sql_query:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"No SQL query found for chart {chart_id}",
         )
-    
+
     # Execute the query
-    from services.database.db_connection_service import run_query_and_return_df, build_connection_string
+    from services.database.db_connection_service import (
+        run_query_and_return_df,
+        build_connection_string,
+    )
     from services.database.db_config_models import get_db_config
-    
+
     # Get database configuration
     db_config = get_db_config(username, connection_name)
     if not db_config:
@@ -93,24 +105,24 @@ async def get_chart_data(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Database configuration not found for {connection_name}",
         )
-    
+
     connection_string = build_connection_string(**db_config)
-    
+
     try:
         result = run_query_and_return_df(connection_string, sql_query)
-        
+
         if result is None:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="Failed to execute query",
             )
-        
+
         # Convert DataFrame to list of dicts
         data = result.to_dict(orient="records")
-        
+
         # Return as JSON array (Vega expects array format)
         return JSONResponse(content=data)
-        
+
     except HTTPException:
         raise
     except Exception as e:
@@ -125,6 +137,7 @@ async def get_chart_data(
 # Main Endpoints
 # =============================================================================
 
+
 @router.post("/generate", response_model=DashboardResponse)
 async def generate_dashboard(
     request: DashboardGenerateRequest,
@@ -132,21 +145,23 @@ async def generate_dashboard(
 ):
     """
     Generate a dashboard from a natural language prompt.
-    
+
     This runs the full 4-agent pipeline:
     1. Strategy Agent: Plans chart objectives
     2. Data Agent: Generates and executes SQL
     3. Viz Spec Agent: Creates Vega-Lite specs
     4. Layout Agent: Composes final dashboard
-    
+
     Returns:
         DashboardResponse with the generated Vega-Lite specification
     """
     username = current_user.username
     session_id = str(uuid.uuid4())
-    
-    logger.info(f"Dashboard generation request from {username}: {request.user_prompt[:100]}...")
-    
+
+    logger.info(
+        f"Dashboard generation request from {username}: {request.user_prompt[:100]}..."
+    )
+
     try:
         # Run the generation pipeline
         result = await run_dashboard_generation(
@@ -157,7 +172,7 @@ async def generate_dashboard(
             max_charts=request.max_charts,
             theme=request.theme or "default",
         )
-        
+
         # Check for errors
         if result.get("error"):
             return DashboardResponse(
@@ -167,10 +182,10 @@ async def generate_dashboard(
                 error=result.get("error"),
                 generation_time_ms=result.get("total_time_ms"),
             )
-        
+
         # Get the dashboard spec
         dashboard_spec = result.get("dashboard_spec")
-        
+
         if not dashboard_spec:
             return DashboardResponse(
                 success=False,
@@ -179,7 +194,7 @@ async def generate_dashboard(
                 error="No dashboard was generated",
                 generation_time_ms=result.get("total_time_ms"),
             )
-        
+
         # Save session for future refinement/refresh
         try:
             save_dashboard_session(
@@ -195,10 +210,14 @@ async def generate_dashboard(
             logger.info(f"Dashboard session {session_id} saved to MongoDB")
         except Exception as save_error:
             logger.error(f"Failed to save dashboard session: {save_error}")
-        
+
         # Build response
-        from langchain_agents.dashboard.models import ComposedDashboardSpec, LayoutConfig, ChartLayoutPosition
-        
+        from langchain_agents.dashboard.models import (
+            ComposedDashboardSpec,
+            LayoutConfig,
+            ChartLayoutPosition,
+        )
+
         # Build layout_config if present
         layout_config = None
         if dashboard_spec.get("layout_config"):
@@ -209,7 +228,7 @@ async def generate_dashboard(
                 layout=[ChartLayoutPosition(**pos) for pos in lc.get("layout", [])],
                 custom=lc.get("custom", False),
             )
-        
+
         return DashboardResponse(
             success=True,
             session_id=session_id,
@@ -226,7 +245,7 @@ async def generate_dashboard(
             error=None,
             generation_time_ms=result.get("total_time_ms"),
         )
-        
+
     except Exception as e:
         logger.exception(f"Dashboard generation failed: {e}")
         return DashboardResponse(
@@ -253,18 +272,6 @@ async def refine_dashboard(
 
     Requires a valid session_id from a previous generation.
     """
-    from langchain_agents.dashboard.agents.refinement_classifier import (
-        classify_refinement_intent,
-    )
-    from langchain_agents.dashboard.graph import run_selective_refinement
-    from langchain_agents.dashboard.models import (
-        RefinementActionType,
-        RefinementClarificationResponse,
-        ComposedDashboardSpec,
-        LayoutConfig,
-        ChartLayoutPosition,
-    )
-
     username = current_user.username
     session_id = request.session_id
 
@@ -423,13 +430,6 @@ async def filter_dashboard(
 
     Note: Filters are NOT persisted to session. Frontend maintains filter state.
     """
-    from langchain_agents.dashboard.filter_utils import apply_filters_to_sql
-    from langchain_agents.dashboard.models import (
-        DashboardFilterRequest,
-        ComposedDashboardSpec,
-        LayoutConfig,
-        ChartLayoutPosition,
-    )
 
     username = current_user.username
     session_id = request.session_id
@@ -547,33 +547,33 @@ async def refresh_dashboard(
 ):
     """
     Refresh dashboard data without re-running LLM agents.
-    
+
     This re-executes the stored SQL queries to fetch fresh data,
     keeping the same visualization structure.
     """
     username = current_user.username
     session_id = request.session_id
-    
+
     logger.info(f"Dashboard refresh request from {username}, session: {session_id}")
-    
+
     # Get existing session
     session = get_dashboard_session(username, session_id)
-    
+
     if not session:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Session {session_id} not found",
         )
-    
+
     try:
         sql_queries = session.get("sql_queries", [])
-        
+
         if not sql_queries:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="No SQL queries stored for this session",
             )
-        
+
         # Re-execute queries
         result = await run_dashboard_refresh(
             session_id=session_id,
@@ -581,7 +581,7 @@ async def refresh_dashboard(
             connection_name=session["connection_name"],
             sql_queries=sql_queries,
         )
-        
+
         if result.get("error"):
             return DashboardResponse(
                 success=False,
@@ -589,17 +589,19 @@ async def refresh_dashboard(
                 dashboard=None,
                 error=result.get("error"),
             )
-        
+
         # Update the dashboard spec with fresh data
         dashboard_spec = session.get("dashboard_spec", {})
         chart_data_results = result.get("chart_data_results", [])
-        
+
         # Update data in viz specs
         vega_lite_spec = dashboard_spec.get("vega_lite_spec", {})
-        
+
         # Map new data by chart_id
-        data_map = {r["chart_id"]: r["data"] for r in chart_data_results if not r.get("error")}
-        
+        data_map = {
+            r["chart_id"]: r["data"] for r in chart_data_results if not r.get("error")
+        }
+
         # Update data in the spec (simplified - full implementation would traverse the spec)
         for key in ["hconcat", "vconcat"]:
             if key in vega_lite_spec:
@@ -608,7 +610,7 @@ async def refresh_dashboard(
                     if chart_id in data_map:
                         if "data" in chart:
                             chart["data"]["values"] = data_map[chart_id]
-        
+
         # Also update data in individual_specs (for flexible layout)
         individual_specs = dashboard_spec.get("individual_specs", [])
         for spec in individual_specs:
@@ -618,29 +620,30 @@ async def refresh_dashboard(
                     spec["data"]["values"] = data_map[chart_id]
                 else:
                     spec["data"] = {"values": data_map[chart_id]}
-        
+
         # Preserve existing layout_config
         layout_config = dashboard_spec.get("layout_config")
-        
+
         # Update session with refreshed data
         update_dashboard_session(
             username=username,
             session_id=session_id,
             dashboard_spec=dashboard_spec,
         )
-        
-        from langchain_agents.dashboard.models import ComposedDashboardSpec, LayoutConfig, ChartLayoutPosition
-        
+
         # Build layout_config if present
         layout_config_obj = None
         if layout_config:
             layout_config_obj = LayoutConfig(
                 cols=layout_config.get("cols", 12),
                 row_height=layout_config.get("row_height", 100),
-                layout=[ChartLayoutPosition(**pos) for pos in layout_config.get("layout", [])],
+                layout=[
+                    ChartLayoutPosition(**pos)
+                    for pos in layout_config.get("layout", [])
+                ],
                 custom=layout_config.get("custom", False),
             )
-        
+
         return DashboardResponse(
             success=True,
             session_id=session_id,
@@ -656,7 +659,7 @@ async def refresh_dashboard(
             ),
             error=None,
         )
-        
+
     except HTTPException:
         raise
     except Exception as e:
@@ -672,6 +675,7 @@ async def refresh_dashboard(
 # =============================================================================
 # Session Management Endpoints
 # =============================================================================
+
 
 @router.get("/sessions")
 async def list_sessions(
@@ -695,30 +699,35 @@ async def get_session(
 ):
     """Get a specific dashboard session."""
     session = get_dashboard_session(current_user.username, session_id)
-    
+
     if not session:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Session {session_id} not found",
         )
-    
+
     # Migrate old dashboard format to new format if needed
     dashboard_spec = session.get("dashboard_spec", {})
     if dashboard_spec and not dashboard_spec.get("individual_specs"):
         # Extract individual charts from vega_lite_spec if it uses concat
         vega_spec = dashboard_spec.get("vega_lite_spec", {})
         individual_specs = []
-        
+
         # Check for vconcat, hconcat, or concat
-        charts = (vega_spec.get("vconcat") or 
-                 vega_spec.get("hconcat") or 
-                 vega_spec.get("concat") or [])
-        
+        charts = (
+            vega_spec.get("vconcat")
+            or vega_spec.get("hconcat")
+            or vega_spec.get("concat")
+            or []
+        )
+
         if charts:
             for i, chart in enumerate(charts):
                 chart_copy = {**chart}
                 chart_copy["chart_id"] = f"chart_{i+1}"
-                chart_copy["$schema"] = "https://vega.github.io/schema/vega-lite/v5.json"
+                chart_copy["$schema"] = (
+                    "https://vega.github.io/schema/vega-lite/v5.json"
+                )
                 chart_copy["width"] = "container"
                 chart_copy["height"] = "container"
                 chart_copy["autosize"] = {"type": "fit", "contains": "padding"}
@@ -731,23 +740,25 @@ async def get_session(
             chart_copy["height"] = "container"
             chart_copy["autosize"] = {"type": "fit", "contains": "padding"}
             individual_specs.append(chart_copy)
-        
+
         if individual_specs:
             # Generate default layout
             layout_positions = []
             num_charts = len(individual_specs)
             for i, spec in enumerate(individual_specs):
                 # Simple 2-column layout
-                layout_positions.append({
-                    "i": spec["chart_id"],
-                    "x": (i % 2) * 6,
-                    "y": (i // 2) * 3,
-                    "w": 6 if num_charts > 1 else 12,
-                    "h": 3,
-                    "minW": 3,
-                    "minH": 2,
-                })
-            
+                layout_positions.append(
+                    {
+                        "i": spec["chart_id"],
+                        "x": (i % 2) * 6,
+                        "y": (i // 2) * 3,
+                        "w": 6 if num_charts > 1 else 12,
+                        "h": 3,
+                        "minW": 3,
+                        "minH": 2,
+                    }
+                )
+
             dashboard_spec["individual_specs"] = individual_specs
             dashboard_spec["layout_config"] = {
                 "cols": 12,
@@ -756,7 +767,7 @@ async def get_session(
                 "custom": False,
             }
             session["dashboard_spec"] = dashboard_spec
-    
+
     return session
 
 
@@ -767,13 +778,13 @@ async def delete_session(
 ):
     """Delete a dashboard session."""
     deleted = delete_dashboard_session(current_user.username, session_id)
-    
+
     if not deleted:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Session {session_id} not found",
         )
-    
+
     return {"message": "Session deleted", "session_id": session_id}
 
 
@@ -785,35 +796,35 @@ async def update_layout(
 ):
     """
     Update the layout configuration for a dashboard session.
-    
+
     This endpoint is called when the user customizes the layout
     by dragging/resizing charts in the frontend.
-    
+
     The layout is marked as 'custom: true' to indicate user modifications.
     """
     username = current_user.username
-    
+
     logger.info(f"Layout update request from {username} for session: {session_id}")
-    
+
     # Check if session exists
     session = get_dashboard_session(username, session_id)
-    
+
     if not session:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Session {session_id} not found",
         )
-    
+
     # Update the layout
     layout_dict = request.layout_config.model_dump()
     updated = update_dashboard_layout(username, session_id, layout_dict)
-    
+
     if not updated:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to update layout",
         )
-    
+
     return {
         "success": True,
         "message": "Layout updated successfully",

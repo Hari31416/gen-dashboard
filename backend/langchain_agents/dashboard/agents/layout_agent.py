@@ -17,7 +17,7 @@ from langchain_core.messages import SystemMessage, HumanMessage
 from langchain_agents.llm_utils import get_llm
 from langchain_agents.dashboard.state import DashboardGraphState
 from langchain_agents.dashboard.models import (
-    ComposedDashboardSpec, 
+    ComposedDashboardSpec,
     LayoutType,
     LayoutConfig,
     ChartLayoutPosition,
@@ -96,12 +96,12 @@ Return JSON with the layout:
 async def layout_agent_node(state: DashboardGraphState) -> Dict[str, Any]:
     """
     Layout Agent node for dashboard generation.
-    
+
     Composes individual chart specs into a final dashboard.
-    
+
     Args:
         state: Current dashboard graph state
-        
+
     Returns:
         Updated state with dashboard_spec
     """
@@ -139,10 +139,12 @@ async def layout_agent_node(state: DashboardGraphState) -> Dict[str, Any]:
         chart_data_results = state.get("chart_data_results") or []
         for result in chart_data_results:
             if result and result.get("sql_query"):
-                sql_queries.append({
-                    "chart_id": result.get("chart_id"),
-                    "sql_query": result.get("sql_query"),
-                })
+                sql_queries.append(
+                    {
+                        "chart_id": result.get("chart_id"),
+                        "sql_query": result.get("sql_query"),
+                    }
+                )
 
         dashboard_spec["sql_queries"] = sql_queries
 
@@ -169,6 +171,7 @@ async def layout_agent_node(state: DashboardGraphState) -> Dict[str, Any]:
             "failed_stage": "layout",
         }
 
+
 def _compose_simple_layout(
     viz_specs: List[Dict[str, Any]],
     chart_goals: List[Dict[str, Any]],
@@ -178,68 +181,92 @@ def _compose_simple_layout(
     """
     Compose a simple layout for few charts (1-3).
     Uses deterministic grid positions based on chart count.
-    
+
     Args:
         viz_specs: Individual chart specifications
         chart_goals: Original chart goals
         user_prompt: User's original request
         theme: Dashboard theme
-        
+
     Returns:
         ComposedDashboardSpec as dict with individual_specs and layout_config
     """
     num_charts = len(viz_specs)
     title = _generate_title(user_prompt, chart_goals)
-    
+
     # Prepare individual specs with theme config
     individual_specs = []
     for i, spec in enumerate(viz_specs):
         # Ensure spec has a consistent chart_id
         if "chart_id" not in spec:
             spec["chart_id"] = f"chart_{i+1}"
-            
+
         individual_spec = _prepare_individual_spec(spec, theme)
         individual_specs.append(individual_spec)
-    
+
     # Generate default layout based on chart count
     layout_positions = []
-    
+
     if num_charts == 1:
         # Single chart: full width
-        layout_positions.append({
-            "i": viz_specs[0]["chart_id"],
-            "x": 0, "y": 0, "w": 12, "h": 4,
-            "minW": 4, "minH": 2
-        })
+        layout_positions.append(
+            {
+                "i": viz_specs[0]["chart_id"],
+                "x": 0,
+                "y": 0,
+                "w": 12,
+                "h": 4,
+                "minW": 4,
+                "minH": 2,
+            }
+        )
     elif num_charts == 2:
         # Two charts: side by side, half width each
         for i, spec in enumerate(viz_specs):
-            layout_positions.append({
-                "i": spec["chart_id"],
-                "x": i * 6, "y": 0, "w": 6, "h": 3,
-                "minW": 3, "minH": 2
-            })
+            layout_positions.append(
+                {
+                    "i": spec["chart_id"],
+                    "x": i * 6,
+                    "y": 0,
+                    "w": 6,
+                    "h": 3,
+                    "minW": 3,
+                    "minH": 2,
+                }
+            )
     else:  # 3 charts
         # First chart wider, other two below
-        layout_positions.append({
-            "i": viz_specs[0]["chart_id"],
-            "x": 0, "y": 0, "w": 12, "h": 3,
-            "minW": 4, "minH": 2
-        })
+        layout_positions.append(
+            {
+                "i": viz_specs[0]["chart_id"],
+                "x": 0,
+                "y": 0,
+                "w": 12,
+                "h": 3,
+                "minW": 4,
+                "minH": 2,
+            }
+        )
         for i, spec in enumerate(viz_specs[1:], start=1):
-            layout_positions.append({
-                "i": spec["chart_id"],
-                "x": (i-1) * 6, "y": 3, "w": 6, "h": 3,
-                "minW": 3, "minH": 2
-            })
-    
+            layout_positions.append(
+                {
+                    "i": spec["chart_id"],
+                    "x": (i - 1) * 6,
+                    "y": 3,
+                    "w": 6,
+                    "h": 3,
+                    "minW": 3,
+                    "minH": 2,
+                }
+            )
+
     layout_config = {
         "cols": 12,
         "row_height": 100,
         "layout": layout_positions,
-        "custom": False
+        "custom": False,
     }
-    
+
     # Also create backward-compatible vega_lite_spec
     if num_charts == 1:
         vega_lite_spec = _create_single_chart_spec(viz_specs[0], theme)
@@ -248,7 +275,7 @@ def _compose_simple_layout(
     else:
         vega_lite_spec = _create_vconcat_spec(viz_specs, theme)
     vega_lite_spec["title"] = title
-    
+
     return {
         "title": title,
         "description": f"Dashboard generated from: {user_prompt[:100]}",
@@ -278,18 +305,18 @@ def _prepare_individual_spec(spec: Dict[str, Any], theme: str) -> Dict[str, Any]
         "autosize": {"type": "fit", "contains": "padding"},
         "config": _get_theme_config(theme),
     }
-    
+
     # Preserve selection for interactivity
     if spec.get("selection"):
         individual_spec["selection"] = spec["selection"]
-    
+
     # Preserve geoshape-specific fields (projection and transform are critical for maps)
     if spec.get("projection"):
         individual_spec["projection"] = spec["projection"]
-    
+
     if spec.get("transform"):
         individual_spec["transform"] = spec["transform"]
-    
+
     return individual_spec
 
 
@@ -306,18 +333,26 @@ async def _compose_complex_layout(
     # Get layout recommendation from LLM
     llm = get_llm(temperature=0.3)
     system_prompt = _get_layout_system_prompt()
-    
+
     # Build chart info for LLM
     charts_info = []
-    for i, (spec, goal) in enumerate(zip(viz_specs, chart_goals or [{}] * len(viz_specs))):
-        chart_type = spec.get("mark", {}).get("type", "bar") if isinstance(spec.get("mark"), dict) else spec.get("mark", "bar")
-        charts_info.append({
-            "chart_id": spec.get("chart_id", f"chart_{i+1}"),
-            "title": spec.get("title", "Chart"),
-            "type": chart_type,
-            "priority": goal.get("priority", 1) if goal else 1,
-        })
-    
+    for i, (spec, goal) in enumerate(
+        zip(viz_specs, chart_goals or [{}] * len(viz_specs))
+    ):
+        chart_type = (
+            spec.get("mark", {}).get("type", "bar")
+            if isinstance(spec.get("mark"), dict)
+            else spec.get("mark", "bar")
+        )
+        charts_info.append(
+            {
+                "chart_id": spec.get("chart_id", f"chart_{i+1}"),
+                "title": spec.get("title", "Chart"),
+                "type": chart_type,
+                "priority": goal.get("priority", 1) if goal else 1,
+            }
+        )
+
     context = f"""## User Request
 {user_prompt}
 
@@ -331,24 +366,26 @@ Create a react-grid-layout compatible layout with positions for each chart.
 Remember: x + w should not exceed 12 for any chart. 
 Place high-priority charts prominently at the top.
 """
-    
+
     messages = [
         SystemMessage(content=system_prompt),
         HumanMessage(content=context),
     ]
-    
+
     response = await llm.ainvoke(messages)
     response_text = response.content
-    
+
     logger.debug(f"Layout LLM response: {response_text[:500]}")
-    
+
     # Parse layout decision
     layout_decision = _parse_layout_decision(response_text, viz_specs)
-    
+
     title = layout_decision.get("title", _generate_title(user_prompt, chart_goals))
-    description = layout_decision.get("description", f"Dashboard for: {user_prompt[:100]}")
+    description = layout_decision.get(
+        "description", f"Dashboard for: {user_prompt[:100]}"
+    )
     layout_positions = layout_decision.get("layout", [])
-    
+
     # Prepare individual specs
     individual_specs = []
     for i, spec in enumerate(viz_specs):
@@ -356,35 +393,39 @@ Place high-priority charts prominently at the top.
             spec["chart_id"] = f"chart_{i+1}"
         individual_spec = _prepare_individual_spec(spec, theme)
         individual_specs.append(individual_spec)
-    
+
     # Validate and ensure all charts have positions
     chart_ids = {spec["chart_id"] for spec in viz_specs}
     positioned_ids = {pos.get("i") for pos in layout_positions}
-    
+
     # Add fallback positions for any missing charts
-    y_offset = max((pos.get("y", 0) + pos.get("h", 2) for pos in layout_positions), default=0)
+    y_offset = max(
+        (pos.get("y", 0) + pos.get("h", 2) for pos in layout_positions), default=0
+    )
     for i, chart_id in enumerate(chart_ids - positioned_ids):
-        layout_positions.append({
-            "i": chart_id,
-            "x": (i % 2) * 6,
-            "y": y_offset + (i // 2) * 3,
-            "w": 6,
-            "h": 3,
-            "minW": 3,
-            "minH": 2
-        })
-    
+        layout_positions.append(
+            {
+                "i": chart_id,
+                "x": (i % 2) * 6,
+                "y": y_offset + (i // 2) * 3,
+                "w": 6,
+                "h": 3,
+                "minW": 3,
+                "minH": 2,
+            }
+        )
+
     layout_config = {
         "cols": 12,
         "row_height": 100,
         "layout": layout_positions,
-        "custom": False
+        "custom": False,
     }
-    
+
     # Also create backward-compatible vega_lite_spec
     vega_lite_spec = _create_grid_spec(viz_specs, [], theme)
     vega_lite_spec["title"] = title
-    
+
     return {
         "title": title,
         "description": description,
@@ -397,16 +438,18 @@ Place high-priority charts prominently at the top.
     }
 
 
-def _parse_layout_decision(response_text: str, viz_specs: List[Dict[str, Any]]) -> Dict[str, Any]:
+def _parse_layout_decision(
+    response_text: str, viz_specs: List[Dict[str, Any]]
+) -> Dict[str, Any]:
     """
     Parse layout decision from LLM response.
     Expects JSON with title, description, and layout array.
     """
     import re
-    
+
     # Try to extract JSON from code block
     json_match = re.search(r"```(?:json)?\s*(\{.*?\})\s*```", response_text, re.DOTALL)
-    
+
     if json_match:
         try:
             result = json.loads(json_match.group(1))
@@ -414,9 +457,11 @@ def _parse_layout_decision(response_text: str, viz_specs: List[Dict[str, Any]]) 
                 return result
         except:
             pass
-    
+
     # Try direct JSON extraction
-    json_match = re.search(r'\{[^{}]*"layout"\s*:\s*\[[^\]]*\][^{}]*\}', response_text, re.DOTALL)
+    json_match = re.search(
+        r'\{[^{}]*"layout"\s*:\s*\[[^\]]*\][^{}]*\}', response_text, re.DOTALL
+    )
     if json_match:
         try:
             result = json.loads(json_match.group(0))
@@ -424,7 +469,7 @@ def _parse_layout_decision(response_text: str, viz_specs: List[Dict[str, Any]]) 
                 return result
         except:
             pass
-    
+
     # Try to find any JSON array for layout
     array_match = re.search(r'"layout"\s*:\s*(\[[^\]]+\])', response_text, re.DOTALL)
     if array_match:
@@ -433,7 +478,7 @@ def _parse_layout_decision(response_text: str, viz_specs: List[Dict[str, Any]]) 
             return {"layout": layout, "title": "Dashboard"}
         except:
             pass
-    
+
     # Fallback: generate default layout
     logger.warning("Failed to parse LLM layout response, using fallback")
     return _generate_fallback_layout(viz_specs)
@@ -446,26 +491,25 @@ def _generate_fallback_layout(viz_specs: List[Dict[str, Any]]) -> Dict[str, Any]
     """
     layout = []
     num_charts = len(viz_specs)
-    
+
     for i, spec in enumerate(viz_specs):
         # Ensure we use the exact same ID logic as the main flow
         chart_id = spec.get("chart_id", f"chart_{i+1}")
-        
+
         # Simple 2-column layout
-        layout.append({
-            "i": chart_id,
-            "x": (i % 2) * 6,
-            "y": (i // 2) * 3,
-            "w": 6,
-            "h": 3,
-            "minW": 3,
-            "minH": 2
-        })
-    
-    return {
-        "title": "Dashboard",
-        "layout": layout
-    }
+        layout.append(
+            {
+                "i": chart_id,
+                "x": (i % 2) * 6,
+                "y": (i // 2) * 3,
+                "w": 6,
+                "h": 3,
+                "minW": 3,
+                "minH": 2,
+            }
+        )
+
+    return {"title": "Dashboard", "layout": layout}
 
 
 def _create_single_chart_spec(spec: Dict[str, Any], theme: str) -> Dict[str, Any]:
@@ -478,12 +522,12 @@ def _create_single_chart_spec(spec: Dict[str, Any], theme: str) -> Dict[str, Any
         "width": "container",
         "height": 400,
     }
-    
+
     if spec.get("selection"):
         result["selection"] = spec["selection"]
-    
+
     result["config"] = _get_theme_config(theme)
-    
+
     return result
 
 
@@ -502,7 +546,7 @@ def _create_hconcat_spec(specs: List[Dict[str, Any]], theme: str) -> Dict[str, A
         if spec.get("selection"):
             chart["selection"] = spec["selection"]
         charts.append(chart)
-    
+
     return {
         "$schema": "https://vega.github.io/schema/vega-lite/v5.json",
         "hconcat": charts,
@@ -526,7 +570,7 @@ def _create_vconcat_spec(specs: List[Dict[str, Any]], theme: str) -> Dict[str, A
         if spec.get("selection"):
             chart["selection"] = spec["selection"]
         charts.append(chart)
-    
+
     return {
         "$schema": "https://vega.github.io/schema/vega-lite/v5.json",
         "vconcat": charts,
@@ -536,17 +580,15 @@ def _create_vconcat_spec(specs: List[Dict[str, Any]], theme: str) -> Dict[str, A
 
 
 def _create_grid_spec(
-    specs: List[Dict[str, Any]], 
-    rows: List[List[str]], 
-    theme: str
+    specs: List[Dict[str, Any]], rows: List[List[str]], theme: str
 ) -> Dict[str, Any]:
     """Create a grid layout."""
     # Map specs by chart_id
     spec_map = {s.get("chart_id"): s for s in specs}
-    
+
     # Build grid rows
     vconcat_rows = []
-    
+
     for row_ids in rows:
         row_charts = []
         for chart_id in row_ids:
@@ -561,18 +603,18 @@ def _create_grid_spec(
                     "height": 250,
                 }
                 row_charts.append(chart)
-        
+
         if row_charts:
             if len(row_charts) == 1:
                 vconcat_rows.append(row_charts[0])
             else:
                 vconcat_rows.append({"hconcat": row_charts})
-    
+
     # Handle any remaining specs not in rows
     used_ids = set()
     for row in rows:
         used_ids.update(row)
-    
+
     for spec in specs:
         if spec.get("chart_id") not in used_ids:
             chart = {
@@ -584,7 +626,7 @@ def _create_grid_spec(
                 "height": 250,
             }
             vconcat_rows.append(chart)
-    
+
     return {
         "$schema": "https://vega.github.io/schema/vega-lite/v5.json",
         "vconcat": vconcat_rows,
@@ -641,7 +683,7 @@ def _generate_title(user_prompt: str, chart_goals: List[Dict[str, Any]]) -> str:
     """Generate a dashboard title from the user prompt."""
     # Simple title extraction
     prompt_lower = user_prompt.lower()
-    
+
     if "sales" in prompt_lower:
         return "Sales Dashboard"
     elif "revenue" in prompt_lower:

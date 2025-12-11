@@ -87,8 +87,8 @@ class LiteLLMChat(BaseChatModel):
                 content=response,
                 response_metadata={
                     "token_usage": usage,
-                    "execution_time": execution_time
-                }
+                    "execution_time": execution_time,
+                },
             )
             generation = ChatGeneration(message=message)
             return ChatResult(generations=[generation])
@@ -123,8 +123,8 @@ class LiteLLMChat(BaseChatModel):
                 content=response,
                 response_metadata={
                     "token_usage": usage,
-                    "execution_time": execution_time
-                }
+                    "execution_time": execution_time,
+                },
             )
             generation = ChatGeneration(message=message)
             return ChatResult(generations=[generation])

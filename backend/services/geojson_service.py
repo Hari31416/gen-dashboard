@@ -68,10 +68,10 @@ def normalize_state_name(state_name: str) -> str:
 def get_state_geojson_filename(state_name: str) -> Optional[str]:
     """
     Get the GeoJSON filename for a given state.
-    
+
     Args:
         state_name: Name of the Indian state
-        
+
     Returns:
         Filename (without .geojson extension) or None if not found
     """
@@ -80,19 +80,18 @@ def get_state_geojson_filename(state_name: str) -> Optional[str]:
 
 
 def get_geojson_config(
-    level: str = "country",
-    target_state: Optional[str] = None
+    level: str = "country", target_state: Optional[str] = None
 ) -> Dict[str, str]:
     """
     Get GeoJSON configuration for a geography level.
-    
+
     Args:
         level: Geography level:
             - "country" or "india": India state-level map
             - "state": India district-level map (requires target_state)
             - "us" or "us_states": US state-level map
         target_state: Required when level is "state", name of the Indian state
-        
+
     Returns:
         Dict with:
             - url: Full URL to GeoJSON file
@@ -156,31 +155,3 @@ def get_geojson_config(
 def get_available_states() -> list:
     """Return list of available states for district-level maps."""
     return sorted(set(STATE_FILENAME_MAP.values()))
-
-
-def match_geography_field_to_geojson(
-    data_field_values: list,
-    geojson_feature_values: list
-) -> float:
-    """
-    Calculate match score between data field values and GeoJSON feature values.
-    
-    Useful for auto-detecting which data field corresponds to geography.
-    
-    Returns:
-        Match score from 0.0 to 1.0
-    """
-    if not data_field_values or not geojson_feature_values:
-        return 0.0
-    
-    # Normalize values for comparison
-    data_normalized = {str(v).lower().strip() for v in data_field_values if v}
-    geo_normalized = {str(v).lower().strip() for v in geojson_feature_values if v}
-    
-    # Calculate intersection
-    matches = data_normalized.intersection(geo_normalized)
-    
-    if not data_normalized:
-        return 0.0
-    
-    return len(matches) / len(data_normalized)
