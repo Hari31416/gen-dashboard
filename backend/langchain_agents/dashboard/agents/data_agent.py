@@ -17,7 +17,6 @@ from langchain_core.messages import SystemMessage, HumanMessage
 
 from langchain_agents.llm_utils import get_llm
 from langchain_agents.dashboard.state import DashboardGraphState
-from langchain_agents.dashboard.models import ChartDataResult, DataAgentOutput
 from langchain_agents.tools.database_tools import check_for_sql_safety
 from services.database.db_config_models import get_db_config
 from services.database.db_connection_service import (
@@ -28,52 +27,6 @@ from prompts import prompt_map
 from utilities import create_simple_logger
 
 logger = create_simple_logger(__name__)
-
-
-def _get_data_agent_system_prompt() -> str:
-    """Get the data agent system prompt."""
-    return prompt_map.get("data_agent_system_prompt", DEFAULT_DATA_PROMPT)
-
-
-DEFAULT_DATA_PROMPT = """You are a SQL Expert for Dashboard Data Generation.
-
-Your task is to generate SQL queries to fetch data for dashboard visualizations.
-
-## Guidelines
-
-1. **SQL Safety**: 
-   - ONLY use SELECT statements
-   - NEVER use UPDATE, DELETE, DROP, ALTER, or INSERT
-   - Always limit results appropriately (use LIMIT for large datasets)
-
-2. **Query Optimization**:
-   - Use appropriate JOINs based on table relationships
-   - Apply GROUP BY for aggregations
-   - Use ORDER BY for sorted results
-   - Apply WHERE clauses for filters
-
-3. **Aggregation Mapping**:
-   - "sum" -> SUM()
-   - "count" -> COUNT()
-   - "average" -> AVG()
-   - "min" -> MIN()
-   - "max" -> MAX()
-   - "distinct" -> COUNT(DISTINCT)
-
-4. **Output Format**:
-   For EACH chart goal, provide a SQL query in this format:
-
-```sql
--- chart_id: chart_1
-SELECT category, SUM(amount) as total_amount
-FROM sales
-GROUP BY category
-ORDER BY total_amount DESC
-LIMIT 10;
-```
-
-Generate one SQL query per chart goal. Mark each with `-- chart_id: <id>` comment.
-"""
 
 
 async def data_agent_node(state: DashboardGraphState) -> Dict[str, Any]:
@@ -202,7 +155,7 @@ async def _generate_chart_data_react(
         "execution_time_ms": None,
     }
 
-    system_prompt = _get_data_agent_system_prompt()
+    system_prompt = prompt_map["data_agent_system_prompt"]
 
     goal_description = f"""Generate a SQL query for this chart:
 - Chart ID: {chart_id}
@@ -246,15 +199,10 @@ Use appropriate JOINs, GROUP BY, ORDER BY as needed.
         response_text = response.content
         messages.append(response)
 
-        # 2. Extract SQL
-        sql_match = re.search(r"```sql\s*([\s\S]*?)```", response_text, re.IGNORECASE)
-        if not sql_match:
-            # Try without sql tag
-            sql_match = re.search(
-                r"```\s*(SELECT[\s\S]*?)```", response_text, re.IGNORECASE
-            )
+        # 2. Extract SQL using helper
+        sql_query = _extract_sql_from_response(response_text)
 
-        if not sql_match:
+        if not sql_query:
             if iteration < max_iterations - 1:
                 feedback = "No SQL query found. Please provide a SQL query wrapped in ```sql ... ```."
                 messages.append(HumanMessage(content=feedback))
@@ -263,9 +211,6 @@ Use appropriate JOINs, GROUP BY, ORDER BY as needed.
                 result["error"] = "Failed to generate SQL query"
                 break
 
-        sql_query = sql_match.group(1).strip()
-        # Clean up chart_id comments if present
-        sql_query = re.sub(r"--\s*chart_id:\s*\w+\s*\n?", "", sql_query).strip()
         result["sql_query"] = sql_query
 
         # 3. Safety check
@@ -278,34 +223,24 @@ Use appropriate JOINs, GROUP BY, ORDER BY as needed.
                 result["error"] = "Unsafe SQL query generated"
                 break
 
-        # 4. Execute query
-        try:
-            df = run_query_and_return_df(connection_string, sql_query)
+        # 4. Execute query using helper
+        execution_result = _execute_query_with_timing(
+            connection_string, sql_query, chart_id
+        )
 
-            # Convert to result format
-            data = df.to_dict(orient="records")
-            columns = df.columns.tolist()
-
-            # Handle NaN/Inf
-            import math
-
-            for row in data:
-                for key, value in row.items():
-                    if isinstance(value, float) and (
-                        math.isnan(value) or math.isinf(value)
-                    ):
-                        row[key] = None
-
-            result["data"] = data
-            result["columns"] = columns
-            result["row_count"] = len(data)
+        if execution_result["success"]:
+            result["data"] = execution_result["data"]
+            result["columns"] = execution_result["columns"]
+            result["row_count"] = execution_result["row_count"]
             result["execution_time_ms"] = (time.time() - query_start) * 1000
 
-            logger.info(f"Chart {chart_id}: Query returned {len(data)} rows")
+            logger.info(
+                f"Chart {chart_id}: Query returned {len(execution_result['data'])} rows"
+            )
             break  # Success!
 
-        except Exception as e:
-            error_msg = str(e)
+        else:
+            error_msg = execution_result["error"]
             logger.warning(
                 f"Chart {chart_id}: Query failed (iteration {iteration + 1}): {error_msg}"
             )
@@ -326,6 +261,34 @@ Provide the corrected query in ```sql ... ```."""
                 result["error"] = error_msg
 
     return result
+
+
+def _extract_sql_from_response(response_text: str) -> str:
+    """
+    Extract SQL query from LLM response.
+    Handles various SQL block formats and cleans up comments.
+
+    Args:
+        response_text: Raw LLM response text
+
+    Returns:
+        Extracted SQL query string or empty string if not found
+    """
+    # Pattern to match ```sql blocks
+    sql_match = re.search(r"```sql\s*([\s\S]*?)```", response_text, re.IGNORECASE)
+    if not sql_match:
+        # Try without sql tag
+        sql_match = re.search(
+            r"```\s*(SELECT[\s\S]*?)```", response_text, re.IGNORECASE
+        )
+
+    if not sql_match:
+        return ""
+
+    sql_query = sql_match.group(1).strip()
+    # Clean up chart_id comments if present
+    sql_query = re.sub(r"--\s*chart_id:\s*\w+\s*\n?", "", sql_query).strip()
+    return sql_query
 
 
 def _format_chart_goals(chart_goals: List[Dict[str, Any]]) -> str:
@@ -433,6 +396,57 @@ def _generate_fallback_query(goal: Dict[str, Any]) -> str:
         return f"SELECT {x_field}, {agg_func}({y_field}) as {y_field} FROM {table} GROUP BY {x_field} LIMIT 100"
     else:
         return f"SELECT * FROM {table} LIMIT 100"
+
+
+def _execute_query_with_timing(
+    connection_string: str, sql_query: str, chart_id: str
+) -> Dict[str, Any]:
+    """
+    Execute a SQL query and return results with structured error handling.
+    Used by ReAct loop for iterative query correction.
+
+    Args:
+        connection_string: Database connection string
+        sql_query: SQL query to execute
+        chart_id: Chart ID for logging
+
+    Returns:
+        Dict with 'success' bool and either 'data'/'columns'/'row_count' or 'error'
+    """
+    try:
+        df = run_query_and_return_df(connection_string, sql_query)
+
+        # Convert to result format
+        data = df.to_dict(orient="records")
+        columns = df.columns.tolist()
+
+        # Handle NaN/Inf
+        import math
+
+        for row in data:
+            for key, value in row.items():
+                if isinstance(value, float) and (
+                    math.isnan(value) or math.isinf(value)
+                ):
+                    row[key] = None
+
+        return {
+            "success": True,
+            "data": data,
+            "columns": columns,
+            "row_count": len(data),
+        }
+
+    except Exception as e:
+        error_msg = str(e)
+        logger.error(f"Query execution failed for {chart_id}: {error_msg}")
+        return {
+            "success": False,
+            "error": error_msg,
+            "data": [],
+            "columns": [],
+            "row_count": 0,
+        }
 
 
 def _execute_query_safe(
