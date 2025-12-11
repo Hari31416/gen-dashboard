@@ -726,7 +726,7 @@ async def get_session(
                 chart_copy = {**chart}
                 chart_copy["chart_id"] = f"chart_{i+1}"
                 chart_copy["$schema"] = (
-                    "https://vega.github.io/schema/vega-lite/v5.json"
+                    "https://vega.github.io/schema/vega-lite/v6.json"
                 )
                 chart_copy["width"] = "container"
                 chart_copy["height"] = "container"

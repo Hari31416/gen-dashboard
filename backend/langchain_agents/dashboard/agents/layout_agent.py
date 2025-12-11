@@ -17,10 +17,7 @@ from langchain_core.messages import SystemMessage, HumanMessage
 from langchain_agents.llm_utils import get_llm
 from langchain_agents.dashboard.state import DashboardGraphState
 from langchain_agents.dashboard.models import (
-    ComposedDashboardSpec,
     LayoutType,
-    LayoutConfig,
-    ChartLayoutPosition,
 )
 from prompts import prompt_map
 from utilities import create_simple_logger
@@ -123,7 +120,7 @@ async def layout_agent_node(state: DashboardGraphState) -> Dict[str, Any]:
     try:
         # For simple cases, use deterministic layout
         if len(viz_specs) <= 3:
-            dashboard_spec = _compose_simple_layout(
+            dashboard_spec = await _compose_simple_layout(
                 viz_specs, chart_goals, user_prompt, theme
             )
         else:
@@ -172,7 +169,7 @@ async def layout_agent_node(state: DashboardGraphState) -> Dict[str, Any]:
         }
 
 
-def _compose_simple_layout(
+async def _compose_simple_layout(
     viz_specs: List[Dict[str, Any]],
     chart_goals: List[Dict[str, Any]],
     user_prompt: str,
@@ -192,7 +189,7 @@ def _compose_simple_layout(
         ComposedDashboardSpec as dict with individual_specs and layout_config
     """
     num_charts = len(viz_specs)
-    title = _generate_title(user_prompt, chart_goals)
+    title = await _generate_title(user_prompt, chart_goals)
 
     # Prepare individual specs with theme config
     individual_specs = []
@@ -294,7 +291,7 @@ def _prepare_individual_spec(spec: Dict[str, Any], theme: str) -> Dict[str, Any]
     Adds necessary Vega-Lite boilerplate and theme config.
     """
     individual_spec = {
-        "$schema": "https://vega.github.io/schema/vega-lite/v5.json",
+        "$schema": "https://vega.github.io/schema/vega-lite/v6.json",
         "chart_id": spec.get("chart_id", "chart"),
         "title": spec.get("title"),
         "mark": spec.get("mark"),
@@ -380,7 +377,9 @@ Place high-priority charts prominently at the top.
     # Parse layout decision
     layout_decision = _parse_layout_decision(response_text, viz_specs)
 
-    title = layout_decision.get("title", _generate_title(user_prompt, chart_goals))
+    title = layout_decision.get(
+        "title", await _generate_title(user_prompt, chart_goals)
+    )
     description = layout_decision.get(
         "description", f"Dashboard for: {user_prompt[:100]}"
     )
@@ -515,7 +514,7 @@ def _generate_fallback_layout(viz_specs: List[Dict[str, Any]]) -> Dict[str, Any]
 def _create_single_chart_spec(spec: Dict[str, Any], theme: str) -> Dict[str, Any]:
     """Create a Vega-Lite spec for a single chart."""
     result = {
-        "$schema": "https://vega.github.io/schema/vega-lite/v5.json",
+        "$schema": "https://vega.github.io/schema/vega-lite/v6.json",
         "mark": spec.get("mark"),
         "encoding": spec.get("encoding"),
         "data": spec.get("data"),
@@ -548,7 +547,7 @@ def _create_hconcat_spec(specs: List[Dict[str, Any]], theme: str) -> Dict[str, A
         charts.append(chart)
 
     return {
-        "$schema": "https://vega.github.io/schema/vega-lite/v5.json",
+        "$schema": "https://vega.github.io/schema/vega-lite/v6.json",
         "hconcat": charts,
         "config": _get_theme_config(theme),
         "spacing": 20,
@@ -572,7 +571,7 @@ def _create_vconcat_spec(specs: List[Dict[str, Any]], theme: str) -> Dict[str, A
         charts.append(chart)
 
     return {
-        "$schema": "https://vega.github.io/schema/vega-lite/v5.json",
+        "$schema": "https://vega.github.io/schema/vega-lite/v6.json",
         "vconcat": charts,
         "config": _get_theme_config(theme),
         "spacing": 20,
@@ -628,7 +627,7 @@ def _create_grid_spec(
             vconcat_rows.append(chart)
 
     return {
-        "$schema": "https://vega.github.io/schema/vega-lite/v5.json",
+        "$schema": "https://vega.github.io/schema/vega-lite/v6.json",
         "vconcat": vconcat_rows,
         "config": _get_theme_config(theme),
         "spacing": 20,
@@ -679,26 +678,70 @@ def _get_theme_config(theme: str) -> Dict[str, Any]:
         }
 
 
-def _generate_title(user_prompt: str, chart_goals: List[Dict[str, Any]]) -> str:
-    """Generate a dashboard title from the user prompt."""
-    # Simple title extraction
-    prompt_lower = user_prompt.lower()
+async def _generate_title(user_prompt: str, chart_goals: List[Dict[str, Any]]) -> str:
+    """Generate a dashboard title from the user prompt using LLM."""
+    try:
+        llm = get_llm(temperature=0.3)
 
-    if "sales" in prompt_lower:
-        return "Sales Dashboard"
-    elif "revenue" in prompt_lower:
-        return "Revenue Analytics"
-    elif "customer" in prompt_lower:
-        return "Customer Insights"
-    elif "product" in prompt_lower:
-        return "Product Analysis"
-    elif "trend" in prompt_lower:
-        return "Trend Analysis"
-    elif "performance" in prompt_lower:
-        return "Performance Dashboard"
-    else:
-        # Use first 50 chars of prompt
-        title = user_prompt[:50].strip()
-        if len(user_prompt) > 50:
-            title += "..."
-        return f"Dashboard: {title}"
+        system_prompt = """You are a dashboard naming expert. Generate a concise, professional dashboard title.
+
+Requirements:
+- Keep it to 5-10 words maximum
+- Be descriptive and clear
+- Make it engaging but professional
+- Avoid generic names like 'Dashboard'
+
+Respond with ONLY the title, nothing else."""
+
+        goals_summary = ""
+        if chart_goals:
+            goals_summary = " ".join(
+                [g.get("description", "") for g in chart_goals if g.get("description")]
+            )
+
+        context = f"""Generate a title for a dashboard with the following request:
+
+User Request: {user_prompt}
+
+Chart Goals: {goals_summary if goals_summary else "(no specific goals provided)"}"""
+
+        messages = [
+            SystemMessage(content=system_prompt),
+            HumanMessage(content=context),
+        ]
+
+        response = await llm.ainvoke(messages)
+        title = response.content.strip()
+
+        # Ensure it's not empty and is reasonable length
+        if title and len(title) < 100:
+            logger.debug(f"Generated title: {title}")
+            return title
+        else:
+            # Fallback if response is invalid
+            title = user_prompt[:50].strip()
+            if len(user_prompt) > 50:
+                title += "..."
+            return f"Dashboard: {title}"
+
+    except Exception as e:
+        logger.warning(f"Failed to generate title with LLM: {e}, using fallback")
+        # Fallback to simple title extraction
+        prompt_lower = user_prompt.lower()
+        if "sales" in prompt_lower:
+            return "Sales Dashboard"
+        elif "revenue" in prompt_lower:
+            return "Revenue Analytics"
+        elif "customer" in prompt_lower:
+            return "Customer Insights"
+        elif "product" in prompt_lower:
+            return "Product Analysis"
+        elif "trend" in prompt_lower:
+            return "Trend Analysis"
+        elif "performance" in prompt_lower:
+            return "Performance Dashboard"
+        else:
+            title = user_prompt[:50].strip()
+            if len(user_prompt) > 50:
+                title += "..."
+            return f"Dashboard: {title}"

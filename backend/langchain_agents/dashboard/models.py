@@ -163,7 +163,7 @@ class SingleVizSpec(BaseModel):
     def to_vega_lite_dict(self) -> Dict[str, Any]:
         """Convert to a complete Vega-Lite specification dict."""
         spec = {
-            "$schema": "https://vega.github.io/schema/vega-lite/v5.json",
+            "$schema": "https://vega.github.io/schema/vega-lite/v6.json",
             "mark": self.mark,
             "encoding": self.encoding,
             "data": self.data,
