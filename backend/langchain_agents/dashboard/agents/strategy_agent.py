@@ -119,7 +119,7 @@ async def strategy_agent_node(state: DashboardGraphState) -> Dict[str, Any]:
     user_prompt = state.get("user_prompt", "")
     username = state.get("username", "")
     connection_name = state.get("connection_name", "")
-    max_charts = state.get("max_charts", 5)
+    max_charts = state.get("max_charts", 10)
 
     logger.info(f"Strategy Agent processing request for connection: {connection_name}")
 

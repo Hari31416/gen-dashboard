@@ -77,7 +77,7 @@ def convert_relationship_info(relationship: Dict) -> str:
 
 
 def convert_tables_info(
-    db_info: Dict, max_tables_to_consider: int = 50, tables: Optional[List[str]] = None
+    db_info: Dict, max_tables_to_consider: int = 100, tables: Optional[List[str]] = None
 ) -> str:
     if len(db_info["tables"]) > max_tables_to_consider:
         logger.info(
@@ -93,7 +93,7 @@ def convert_tables_info(
 
 
 def convert_relationships(
-    relationships: Dict, max_relationships_to_consider: int = 100
+    relationships: Dict, max_relationships_to_consider: int = 200
 ) -> str:
     if relationships is None:
         return "## Relationships\n\nNo relationships available.\n"
@@ -131,8 +131,8 @@ def create_db_schema_input(
     db_info: Dict,
     relationships: Dict,
     user_query: str,
-    max_tables_to_consider: int = 50,
-    max_relationships_to_consider: int = 100,
+    max_tables_to_consider: int = 100,
+    max_relationships_to_consider: int = 200,
 ) -> str:
     db_description = db_info.get("db_description", "")
     db_schema = convert_tables_info(db_info, max_tables_to_consider)

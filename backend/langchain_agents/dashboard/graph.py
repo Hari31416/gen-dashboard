@@ -146,7 +146,7 @@ async def run_dashboard_generation(
     username: str,
     connection_name: str,
     session_id: Optional[str] = None,
-    max_charts: int = 5,
+    max_charts: int = 10,
     theme: str = "default",
 ) -> Dict[str, Any]:
     """
