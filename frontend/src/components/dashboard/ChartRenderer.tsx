@@ -10,7 +10,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Textarea } from '@/components/ui/textarea';
 import { dashboardApi } from '@/api/client';
-import { Move, Unlock, Save, RotateCcw, Download, Sparkles, Trash2 } from 'lucide-react';
+import { Move, Unlock, Save, RotateCcw, Download, Sparkles, Trash2, Code, FileDown } from 'lucide-react';
 
 interface ChartRendererProps {
     dashboard?: ComposedDashboardSpec;
@@ -22,6 +22,9 @@ interface ChartRendererProps {
     onRefine?: (chartId: string, feedback: string) => void;
     onDelete?: (chartId: string) => void;
 }
+
+// Debug mode from environment variable
+const DEBUG_MODE = import.meta.env.VITE_DEBUG_MODE === 'true';
 
 /**
  * Individual chart component that renders a single Vega-Lite spec
@@ -300,8 +303,8 @@ export const ChartRenderer: React.FC<ChartRendererProps> = ({
         setCurrentLayout(originalLayout);
     };
 
-    // Export dashboard to standalone HTML file
-    const handleExportHTML = useCallback(() => {
+    // Export dashboard to standalone HTML file with embedded data
+    const handleExportHTML = useCallback(async () => {
         if (!dashboard) return;
 
         // Get the specs to export (either individual or composed)
@@ -318,7 +321,30 @@ export const ChartRenderer: React.FC<ChartRendererProps> = ({
         const gridCols = dashboard.layout_config?.cols || 12;
         const rowHeight = dashboard.layout_config?.row_height || 100;
 
+        // Fetch data for each chart and embed inline
+        const token = localStorage.getItem('token');
+        const specsWithData = await Promise.all(specs.map(async (spec) => {
+            const chartSpec = { ...spec } as Record<string, any>;
 
+            // If spec has URL-based data, fetch and embed it
+            if (chartSpec.data && typeof chartSpec.data === 'object' && chartSpec.data.url) {
+                try {
+                    const response = await fetch(chartSpec.data.url, {
+                        headers: token ? { 'Authorization': `Bearer ${token}` } : {}
+                    });
+                    if (response.ok) {
+                        const data = await response.json();
+                        // Replace URL with inline values
+                        chartSpec.data = { values: data };
+                    }
+                } catch (error) {
+                    console.error('Failed to fetch chart data for export:', error);
+                    // Keep URL-based (will fail in exported file but at least shows something)
+                }
+            }
+
+            return chartSpec;
+        }));
 
         // Generate HTML content with CSS Grid matching the layout
         const htmlContent = `<!DOCTYPE html>
@@ -388,7 +414,7 @@ export const ChartRenderer: React.FC<ChartRendererProps> = ({
             font-size: 12px;
             color: #999;
         }
-        ${specs.map((spec, i) => {
+        ${specsWithData.map((spec, i) => {
             const chartId = (spec as Record<string, any>).chart_id || `chart_${i + 1}`;
             const pos = layoutPositions.find(p => p.i === chartId);
             if (pos) {
@@ -407,7 +433,7 @@ export const ChartRenderer: React.FC<ChartRendererProps> = ({
         ${dashboard.description ? `<p>${dashboard.description}</p>` : ''}
     </div>
     <div class="charts-grid">
-        ${specs.map((spec, i) => {
+        ${specsWithData.map((spec, i) => {
             const chartId = (spec as Record<string, any>).chart_id || `chart_${i + 1}`;
             const title = (spec as Record<string, any>).title || '';
             return `
@@ -421,7 +447,7 @@ export const ChartRenderer: React.FC<ChartRendererProps> = ({
         Generated on ${new Date().toLocaleString()}
     </div>
     <script>
-        const specs = ${JSON.stringify(specs.map(spec => {
+        const specs = ${JSON.stringify(specsWithData.map(spec => {
             const cleanSpec = { ...spec } as Record<string, any>;
             delete cleanSpec.chart_id;
             // Keep container sizing - we'll handle it with JS
@@ -431,7 +457,7 @@ export const ChartRenderer: React.FC<ChartRendererProps> = ({
             return cleanSpec;
         }), null, 2)};
         
-        const chartIds = ${JSON.stringify(specs.map((s, i) => (s as Record<string, any>).chart_id || `chart_${i + 1}`))};
+        const chartIds = ${JSON.stringify(specsWithData.map((s, i) => (s as Record<string, any>).chart_id || `chart_${i + 1}`))};
         
         function renderCharts() {
             specs.forEach((spec, i) => {
@@ -686,6 +712,78 @@ export const ChartRenderer: React.FC<ChartRendererProps> = ({
                                                         onClick={() => onDelete(chartId)}
                                                     >
                                                         <Trash2 className="h-3.5 w-3.5" />
+                                                    </Button>
+                                                )}
+
+                                                {!editMode && DEBUG_MODE && (
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="icon"
+                                                        className="h-6 w-6 text-muted-foreground hover:text-blue-500"
+                                                        title="Copy Vega JSON (Debug)"
+                                                        onClick={async () => {
+                                                            // Fetch data and create standalone Vega JSON
+                                                            const chartSpec = { ...spec } as Record<string, any>;
+                                                            if (chartSpec.data?.url) {
+                                                                try {
+                                                                    const token = localStorage.getItem('token');
+                                                                    const response = await fetch(chartSpec.data.url, {
+                                                                        headers: token ? { 'Authorization': `Bearer ${token}` } : {}
+                                                                    });
+                                                                    if (response.ok) {
+                                                                        const data = await response.json();
+                                                                        chartSpec.data = { values: data };
+                                                                    }
+                                                                } catch (e) {
+                                                                    console.error('Failed to fetch data:', e);
+                                                                }
+                                                            }
+                                                            delete chartSpec.chart_id;
+                                                            const jsonStr = JSON.stringify(chartSpec, null, 2);
+                                                            await navigator.clipboard.writeText(jsonStr);
+                                                            alert('Vega JSON copied to clipboard!');
+                                                        }}
+                                                    >
+                                                        <Code className="h-3.5 w-3.5" />
+                                                    </Button>
+                                                )}
+
+                                                {!editMode && DEBUG_MODE && (
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="icon"
+                                                        className="h-6 w-6 text-muted-foreground hover:text-green-500"
+                                                        title="Download Vega JSON (Debug)"
+                                                        onClick={async () => {
+                                                            // Fetch data and create standalone Vega JSON
+                                                            const chartSpec = { ...spec } as Record<string, any>;
+                                                            if (chartSpec.data?.url) {
+                                                                try {
+                                                                    const token = localStorage.getItem('token');
+                                                                    const response = await fetch(chartSpec.data.url, {
+                                                                        headers: token ? { 'Authorization': `Bearer ${token}` } : {}
+                                                                    });
+                                                                    if (response.ok) {
+                                                                        const data = await response.json();
+                                                                        chartSpec.data = { values: data };
+                                                                    }
+                                                                } catch (e) {
+                                                                    console.error('Failed to fetch data:', e);
+                                                                }
+                                                            }
+                                                            delete chartSpec.chart_id;
+                                                            const blob = new Blob([JSON.stringify(chartSpec, null, 2)], { type: 'application/json' });
+                                                            const url = URL.createObjectURL(blob);
+                                                            const link = document.createElement('a');
+                                                            link.href = url;
+                                                            link.download = `${spec.title?.replace(/[^a-z0-9]/gi, '_') || chartId}.json`;
+                                                            document.body.appendChild(link);
+                                                            link.click();
+                                                            document.body.removeChild(link);
+                                                            URL.revokeObjectURL(url);
+                                                        }}
+                                                    >
+                                                        <FileDown className="h-3.5 w-3.5" />
                                                     </Button>
                                                 )}
                                             </div>
