@@ -42,9 +42,10 @@ Your task is to analyze user feedback about an existing dashboard and determine 
    - Use when: "change to line chart", "make it a bar chart", "show as pie"
    - Parameters: new_type (bar, line, arc, point, text, rect, area)
    
-4. **change_encoding** - Change data fields or visual encoding
-   - Use when: "group by region instead", "show by month", "color by category"
-   - Parameters: x_field, y_field, color_field, aggregation
+4. **change_encoding** - Change data fields, visual encoding, or number formatting
+   - Use when: "group by region instead", "show by month", "color by category", "format numbers as currency", "show percentages", "use thousands separator"
+   - Parameters: x_field, y_field, color_field, aggregation, number_format, x_format, tooltip_format
+   - Number format examples: ",.0f" (thousands, no decimal), ",.2f" (thousands, 2 decimals), "$,.2f" (currency), ".2%" (percentage), "~s" (SI prefix like 1.2M)
    
 5. **change_title** - Update chart or dashboard title
    - Use when: "change title to X", "rename the chart"

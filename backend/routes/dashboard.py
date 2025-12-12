@@ -50,6 +50,39 @@ logger = create_simple_logger(__name__)
 router = APIRouter(prefix="/dashboard", tags=["dashboard"])
 
 
+def _sanitize_for_json(data: list) -> list:
+    """
+    Sanitize data for JSON serialization.
+
+    Handles types that are not natively JSON serializable:
+    - Decimal -> float
+    - datetime/date -> ISO string
+    - bytes -> base64 string
+    - NaN/Inf -> None
+    """
+    from decimal import Decimal
+    from datetime import datetime, date
+    import math
+
+    def sanitize_value(val):
+        if val is None:
+            return None
+        if isinstance(val, Decimal):
+            return float(val)
+        if isinstance(val, (datetime, date)):
+            return val.isoformat()
+        if isinstance(val, bytes):
+            import base64
+
+            return base64.b64encode(val).decode("utf-8")
+        if isinstance(val, float):
+            if math.isnan(val) or math.isinf(val):
+                return None
+        return val
+
+    return [{k: sanitize_value(v) for k, v in row.items()} for row in data]
+
+
 # =============================================================================
 # Chart Data Endpoint (URL-based data loading)
 # =============================================================================
@@ -117,6 +150,9 @@ async def get_chart_data(
 
         # Convert DataFrame to list of dicts
         data = result.to_dict(orient="records")
+
+        # Sanitize data for JSON serialization (handle Decimal, datetime, etc.)
+        data = _sanitize_for_json(data)
 
         # Return as JSON array (Vega expects array format)
         return JSONResponse(content=data)
