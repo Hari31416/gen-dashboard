@@ -179,6 +179,37 @@ export const DashboardView: React.FC = () => {
     [sessionId]
   );
 
+  const handleChartRefine = async (chartId: string, feedback: string) => {
+    if (!sessionId) return;
+
+    setIsLoading(true);
+    setError(null);
+    try {
+      const response = await dashboardApi.refine({
+        session_id: sessionId,
+        new_feedback: feedback,
+        target_chart_id: chartId,
+      });
+
+      // Check if clarification is needed
+      if (response.requires_clarification && response.clarification_question) {
+        setClarificationQuestion(response.clarification_question);
+        setClarificationOpen(true);
+        return;
+      }
+
+      if (response.success && response.dashboard) {
+        setDashboard(response.dashboard);
+      } else {
+        setError(response.error || "Failed to refine dashboard");
+      }
+    } catch (err: any) {
+      setError(err.message || "An error occurred");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const handleLoadSession = async (session_id: string) => {
     setIsLoading(true);
     setError(null);
@@ -339,6 +370,7 @@ export const DashboardView: React.FC = () => {
           sessionId={sessionId}
           onRefresh={handleRefresh}
           onFilterChange={handleChartFilterChange}
+          onRefine={handleChartRefine}
         />
       </main>
 

@@ -7,8 +7,10 @@ import type { ComposedDashboardSpec, LayoutConfig } from '@/types/dashboard';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Textarea } from '@/components/ui/textarea';
 import { dashboardApi } from '@/api/client';
-import { Move, Unlock, Save, RotateCcw, Download } from 'lucide-react';
+import { Move, Unlock, Save, RotateCcw, Download, Sparkles } from 'lucide-react';
 
 interface ChartRendererProps {
     dashboard?: ComposedDashboardSpec;
@@ -17,6 +19,7 @@ interface ChartRendererProps {
     onLayoutChange?: (layout: LayoutConfig) => void;
     onFilterChange?: (filters: Record<string, any>) => void;
     onRefresh?: () => void;
+    onRefine?: (chartId: string, feedback: string) => void;
 }
 
 /**
@@ -85,7 +88,7 @@ const IndividualChart: React.FC<{
 
                 // Add click listener if we have a callback
                 if (onFilterChange) {
-                    result.view.addEventListener('click', (_event, item) => {
+                    result.view.addEventListener('click', (_event: any, item: any) => {
                         if (item && item.datum) {
                             // Extract meaningful data points for filtering
                             const datum = item.datum;
@@ -176,7 +179,8 @@ export const ChartRenderer: React.FC<ChartRendererProps> = ({
     sessionId,
     onLayoutChange,
     onFilterChange,
-    onRefresh
+    onRefresh,
+    onRefine
 }) => {
     const containerRef = useRef<HTMLDivElement>(null);
     const [editMode, setEditMode] = useState(false);
@@ -184,6 +188,19 @@ export const ChartRenderer: React.FC<ChartRendererProps> = ({
     const [originalLayout, setOriginalLayout] = useState<Layout[]>([]);
     const [isSaving, setIsSaving] = useState(false);
     const [containerWidth, setContainerWidth] = useState(0);
+
+    // Track refine input state locally
+    const [refineInputs, setRefineInputs] = useState<Record<string, string>>({});
+    const [openPopovers, setOpenPopovers] = useState<Record<string, boolean>>({});
+
+    const handleRefineSubmit = (chartId: string) => {
+        const feedback = refineInputs[chartId];
+        if (feedback && onRefine) {
+            onRefine(chartId, feedback);
+            setRefineInputs(prev => ({ ...prev, [chartId]: '' }));
+            setOpenPopovers(prev => ({ ...prev, [chartId]: false }));
+        }
+    };
 
     // Calculate container width for react-grid-layout using ResizeObserver
     useEffect(() => {
@@ -602,11 +619,61 @@ export const ChartRenderer: React.FC<ChartRendererProps> = ({
                                     style={{ overflow: 'hidden' }}
                                 >
                                     <div className="p-2 h-full flex flex-col overflow-hidden">
-                                        {spec.title && (
-                                            <h3 className="text-sm font-medium text-muted-foreground mb-1 px-2 flex-shrink-0">
-                                                {spec.title}
-                                            </h3>
-                                        )}
+                                        <div className="flex items-center justify-between px-2 mb-1 flex-shrink-0">
+                                            {spec.title && (
+                                                <h3 className="text-sm font-medium text-muted-foreground truncate" title={spec.title}>
+                                                    {spec.title}
+                                                </h3>
+                                            )}
+
+                                            {!editMode && onRefine && (
+                                                <Popover
+                                                    open={openPopovers[chartId]}
+                                                    onOpenChange={(open) => setOpenPopovers(prev => ({ ...prev, [chartId]: open }))}
+                                                >
+                                                    <PopoverTrigger asChild>
+                                                        <Button
+                                                            variant="ghost"
+                                                            size="icon"
+                                                            className="h-6 w-6 text-muted-foreground hover:text-primary"
+                                                            title="Refine this chart"
+                                                        >
+                                                            <Sparkles className="h-3.5 w-3.5" />
+                                                        </Button>
+                                                    </PopoverTrigger>
+                                                    <PopoverContent className="w-80" align="end">
+                                                        <div className="grid gap-4">
+                                                            <div className="space-y-2">
+                                                                <h4 className="font-medium leading-none">Refine Chart</h4>
+                                                                <p className="text-sm text-muted-foreground">
+                                                                    Describe how you want to modify this specific chart.
+                                                                </p>
+                                                            </div>
+                                                            <div className="grid gap-2">
+                                                                <Textarea
+                                                                    id={`refine-${chartId}`}
+                                                                    placeholder="e.g. Change to bar chart, change color to blue..."
+                                                                    value={refineInputs[chartId] || ''}
+                                                                    onChange={(e) => setRefineInputs(prev => ({ ...prev, [chartId]: e.target.value }))}
+                                                                    className="col-span-3 min-h-[80px]"
+                                                                    onKeyDown={(e) => {
+                                                                        if (e.key === 'Enter' && !e.shiftKey) {
+                                                                            e.preventDefault();
+                                                                            handleRefineSubmit(chartId);
+                                                                        }
+                                                                    }}
+                                                                />
+                                                            </div>
+                                                            <div className="flex justify-end">
+                                                                <Button size="sm" onClick={() => handleRefineSubmit(chartId)}>
+                                                                    Apply
+                                                                </Button>
+                                                            </div>
+                                                        </div>
+                                                    </PopoverContent>
+                                                </Popover>
+                                            )}
+                                        </div>
                                         <div className="flex-1 overflow-hidden" style={{ minHeight: 0 }}>
                                             <IndividualChart
                                                 spec={spec}
