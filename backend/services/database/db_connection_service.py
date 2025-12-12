@@ -362,13 +362,8 @@ def run_query_and_return_df(
     Execute a query and return the results as a pandas DataFrame.
 
     Args:
-        host: Database host
-        port: Database port
-        username: Database username
-        password: Database password (plain text)
-        database_name: Database name
+        connection_string: SQLAlchemy connection string
         query: SQL query to execute
-        db_type: Database type
     Returns:
         pandas DataFrame with query results
     """
@@ -377,8 +372,20 @@ def run_query_and_return_df(
     try:
         engine = create_engine(connection_string, pool_pre_ping=True)
 
-        df = pd.read_sql(sql=text(query), con=engine)
-        return df
+        # Use raw DBAPI connection to avoid SQLAlchemy's % character handling
+        # This is necessary for MySQL DATE_FORMAT which uses %Y, %m, etc.
+        raw_conn = engine.raw_connection()
+        try:
+            cursor = raw_conn.cursor()
+            cursor.execute(query)
+            columns = [desc[0] for desc in cursor.description]
+            rows = cursor.fetchall()
+            df = pd.DataFrame(rows, columns=columns)
+            cursor.close()
+            return df
+        finally:
+            raw_conn.close()
+
     except SQLAlchemyError as e:
         logger.error(f"Error executing query and returning DataFrame: {e}")
         raise

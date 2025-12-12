@@ -61,3 +61,4 @@ ORDER BY month ASC;
 - Use the dialect specified (MySQL, PostgreSQL, etc.)
 - Ensure column names match the x_field, y_field from chart goals
 - Apply any filters specified in the chart goal
+- **CRITICAL: Use EXACT table and column names from the schema. MySQL table names are CASE-SENSITIVE. Do NOT change capitalization (e.g., use `Sales_SalesOrderHeader` not `sales_salesorderheader`).**
