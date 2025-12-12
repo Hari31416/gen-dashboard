@@ -63,6 +63,10 @@ export const dashboardApi = {
             layout_config: layoutConfig
         });
         return response.data;
+    },
+    deleteChart: async (sessionId: string, chartId: string): Promise<DashboardResponse> => {
+        const response = await api.delete(`/dashboard/${sessionId}/chart/${chartId}`);
+        return response.data;
     }
 };
 

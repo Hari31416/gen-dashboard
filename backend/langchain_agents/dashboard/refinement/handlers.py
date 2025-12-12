@@ -476,19 +476,44 @@ async def handle_add_chart(
         return {}
 
     # Generate new chart ID based on max existing ID
-    existing_ids = [
-        s.get("chart_id", "") for s in updated_dashboard.get("individual_specs", [])
-    ]
+    # Check both individual_specs and sql_queries for existing IDs
+    existing_ids = set()
+    for s in updated_dashboard.get("individual_specs", []):
+        if s.get("chart_id"):
+            existing_ids.add(s.get("chart_id"))
+    for q in updated_sql_queries:
+        if q.get("chart_id"):
+            existing_ids.add(q.get("chart_id"))
+
+    logger.info(f"Existing chart IDs: {existing_ids}")
+
     max_num = 0
     for eid in existing_ids:
-        if eid.startswith("chart_"):
+        if eid and eid.startswith("chart_"):
             try:
                 num = int(eid.replace("chart_", ""))
                 max_num = max(max_num, num)
             except ValueError:
                 pass
+
     new_id = f"chart_{max_num + 1}"
+    logger.info(f"Generated new chart ID: {new_id} (max found: {max_num})")
+
+    # Get the original chart_id from the generated spec (usually "chart_1")
+    original_id = new_individual[0].get("chart_id", "chart_1")
+
+    # Update chart_id
     new_individual[0]["chart_id"] = new_id
+
+    # Update data URL if present (replace original chart_id with new one)
+    if new_individual[0].get("data") and isinstance(new_individual[0]["data"], dict):
+        data_url = new_individual[0]["data"].get("url", "")
+        if data_url and original_id in data_url:
+            new_data_url = data_url.replace(
+                f"/chart/{original_id}/", f"/chart/{new_id}/"
+            )
+            new_individual[0]["data"]["url"] = new_data_url
+            logger.info(f"Updated data URL: {data_url} -> {new_data_url}")
 
     # Add to dashboard
     updated_dashboard.setdefault("individual_specs", []).append(new_individual[0])

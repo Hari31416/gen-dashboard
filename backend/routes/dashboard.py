@@ -167,6 +167,104 @@ async def get_chart_data(
         )
 
 
+@router.delete("/{session_id}/chart/{chart_id}")
+async def delete_chart(
+    session_id: str,
+    chart_id: str,
+    current_user: User = Depends(get_current_active_user),
+):
+    """
+    Delete a specific chart from a dashboard.
+
+    This directly removes the chart without LLM calls - useful for quick deletions.
+    """
+    username = current_user.username
+
+    # Get session
+    session = get_dashboard_session(username, session_id)
+    if not session:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Session {session_id} not found",
+        )
+
+    dashboard_spec = session.get("dashboard_spec", {})
+    sql_queries = session.get("sql_queries", [])
+    chart_goals = session.get("chart_goals", [])
+
+    # Check if chart exists
+    individual_specs = dashboard_spec.get("individual_specs", [])
+    chart_exists = any(s.get("chart_id") == chart_id for s in individual_specs)
+
+    if not chart_exists:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Chart {chart_id} not found in dashboard",
+        )
+
+    # Remove from individual_specs
+    dashboard_spec["individual_specs"] = [
+        s for s in individual_specs if s.get("chart_id") != chart_id
+    ]
+
+    # Remove from layout
+    if dashboard_spec.get("layout_config"):
+        dashboard_spec["layout_config"]["layout"] = [
+            l
+            for l in dashboard_spec["layout_config"].get("layout", [])
+            if l.get("i") != chart_id
+        ]
+
+    # Remove from sql_queries
+    sql_queries = [q for q in sql_queries if q.get("chart_id") != chart_id]
+
+    # Remove from chart_goals
+    chart_goals = [g for g in chart_goals if g.get("chart_id") != chart_id]
+
+    # Update chart count
+    dashboard_spec["chart_count"] = len(dashboard_spec.get("individual_specs", []))
+
+    # Save updated session
+    update_dashboard_session(
+        username=username,
+        session_id=session_id,
+        dashboard_spec=dashboard_spec,
+        chart_goals=chart_goals,
+    )
+
+    # Also update sql_queries in dashboard_spec for consistency
+    dashboard_spec["sql_queries"] = sql_queries
+
+    logger.info(f"Deleted chart {chart_id} from session {session_id}")
+
+    # Build response with updated dashboard
+    layout_config = None
+    if dashboard_spec.get("layout_config"):
+        lc = dashboard_spec["layout_config"]
+        layout_config = LayoutConfig(
+            cols=lc.get("cols", 12),
+            row_height=lc.get("row_height", 100),
+            layout=[ChartLayoutPosition(**pos) for pos in lc.get("layout", [])],
+            custom=lc.get("custom", False),
+        )
+
+    response_dashboard = ComposedDashboardSpec(
+        title=dashboard_spec.get("title", "Dashboard"),
+        description=dashboard_spec.get("description"),
+        vega_lite_spec=dashboard_spec.get("vega_lite_spec", {}),
+        individual_specs=dashboard_spec.get("individual_specs", []),
+        chart_count=dashboard_spec.get("chart_count", 0),
+        layout_config=layout_config,
+        sql_queries=sql_queries,
+    )
+
+    return DashboardResponse(
+        success=True,
+        session_id=session_id,
+        dashboard=response_dashboard,
+    )
+
+
 # =============================================================================
 # Main Endpoints
 # =============================================================================
