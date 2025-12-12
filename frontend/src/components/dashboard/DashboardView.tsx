@@ -210,6 +210,31 @@ export const DashboardView: React.FC = () => {
     }
   };
 
+  const handleChartDelete = async (chartId: string) => {
+    if (!sessionId) return;
+
+    // Confirm deletion
+    if (!window.confirm(`Are you sure you want to delete this chart?`)) {
+      return;
+    }
+
+    setIsLoading(true);
+    setError(null);
+    try {
+      const response = await dashboardApi.deleteChart(sessionId, chartId);
+
+      if (response.success && response.dashboard) {
+        setDashboard(response.dashboard);
+      } else {
+        setError(response.error || "Failed to delete chart");
+      }
+    } catch (err: any) {
+      setError(err.message || "An error occurred");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const handleLoadSession = async (session_id: string) => {
     setIsLoading(true);
     setError(null);
@@ -371,6 +396,7 @@ export const DashboardView: React.FC = () => {
           onRefresh={handleRefresh}
           onFilterChange={handleChartFilterChange}
           onRefine={handleChartRefine}
+          onDelete={handleChartDelete}
         />
       </main>
 

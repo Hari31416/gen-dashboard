@@ -131,14 +131,17 @@ def _strip_inline_data(dashboard_spec: Dict[str, Any]) -> Dict[str, Any]:
 def _serialize_for_mongo(obj: Any) -> Any:
     """
     Recursively convert non-serializable objects for MongoDB.
-    Handles datetime.date, datetime.datetime, and other types.
+    Handles datetime.date, datetime.datetime, Decimal, and other types.
     """
     import datetime
+    from decimal import Decimal
 
     if isinstance(obj, datetime.datetime):
         return obj  # MongoDB handles datetime.datetime natively
     elif isinstance(obj, datetime.date):
         return obj.isoformat()  # Convert date to string
+    elif isinstance(obj, Decimal):
+        return float(obj)  # Convert Decimal to float for MongoDB
     elif isinstance(obj, dict):
         return {key: _serialize_for_mongo(value) for key, value in obj.items()}
     elif isinstance(obj, list):
@@ -207,7 +210,9 @@ def update_dashboard_session(
     if chart_goals is not None:
         update_fields["chart_goals"] = chart_goals
 
-    update_doc = {"$set": update_fields}
+    # Serialize to handle MongoDB reserved characters ($ and .)
+    serialized_fields = _serialize_for_mongo(update_fields)
+    update_doc = {"$set": serialized_fields}
 
     # Add refinement to history
     if refinement_feedback:
