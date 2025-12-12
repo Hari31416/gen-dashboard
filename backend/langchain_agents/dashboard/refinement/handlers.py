@@ -603,22 +603,180 @@ async def handle_change_theme(
     """
     Change the dashboard theme/styling.
 
-    Note: Full theme implementation would require viz agent updates.
+    Uses an LLM to interpret the user's theme description and generate
+    appropriate Vega-Lite color/styling configurations.
 
     Args:
         action: RefinementAction with parameters.theme_description
         updated_dashboard: Current dashboard spec
 
     Returns:
-        Dict with any theme-related updates
+        Dict with updated individual_specs containing new theme config
     """
+    import json
+    from langchain_core.messages import SystemMessage, HumanMessage
+    from langchain_agents.llm_utils import get_llm
+
     theme_desc = action.parameters.get("theme_description", "")
+    target_chart_id = action.target_chart_id
 
-    # For now, we just log this - full theme implementation would require viz agent
-    logger.info(f"Theme change requested: {theme_desc} (basic implementation)")
+    if not theme_desc:
+        logger.warning("No theme description provided")
+        return {}
 
-    # TODO: Implement full theme changes via viz agent
-    # For now, we could at least update config
+    logger.info(f"Theme change requested: {theme_desc}")
+
+    # Build prompt for LLM to generate theme configuration
+    theme_prompt = """You are a Vega-Lite theming expert.
+
+Given a user's theme description, generate a JSON object with color and styling configurations.
+
+Output a JSON object with these optional fields:
+- "mark_color": A single hex color for chart marks (bars, lines, points, etc.)
+- "color_scheme": A Vega color scheme name (e.g., "blues", "greens", "oranges", "purples", "reds", "greys", "viridis", "plasma", "inferno", "magma", "category10", "category20", "tableau10", "tableau20", "dark2", "set1", "set2", "set3", "pastel1", "pastel2")
+- "background": Background color for charts (hex)
+- "title_color": Color for chart titles (hex)
+- "axis_color": Color for axis lines and labels (hex)
+- "grid_color": Color for grid lines (hex)
+
+Only include fields that are relevant to the user's request.
+
+Examples:
+- "make it darker" -> {"background": "#1a1a2e", "title_color": "#ffffff", "axis_color": "#888888", "grid_color": "#333344"}
+- "use blue colors" -> {"mark_color": "#4a90d9", "color_scheme": "blues"}
+- "green theme" -> {"mark_color": "#2ecc71", "color_scheme": "greens"}
+- "corporate look" -> {"mark_color": "#2c3e50", "color_scheme": "tableau10", "background": "#f8f9fa"}
+- "warm colors" -> {"mark_color": "#e74c3c", "color_scheme": "oranges"}
+- "pastel colors" -> {"color_scheme": "pastel1"}
+
+User request: """
+
+    try:
+        llm = get_llm(temperature=0.2)
+        messages = [
+            SystemMessage(content=theme_prompt),
+            HumanMessage(content=theme_desc),
+        ]
+        response = await llm.ainvoke(messages)
+        response_text = response.content
+
+        # Extract JSON from response
+        import re
+
+        json_match = re.search(r"\{[^{}]*\}", response_text, re.DOTALL)
+        if not json_match:
+            logger.warning("Could not parse theme JSON from LLM response")
+            return {}
+
+        theme_config = json.loads(json_match.group(0))
+        logger.info(f"Generated theme config: {theme_config}")
+
+    except Exception as e:
+        logger.warning(f"LLM theme generation failed, using fallback: {e}")
+        # Fallback: simple color mapping based on keywords
+        theme_config = _get_fallback_theme(theme_desc)
+
+    if not theme_config:
+        return {}
+
+    # Apply theme to charts
+    individual_specs = updated_dashboard.get("individual_specs", [])
+
+    for spec in individual_specs:
+        # Skip if targeting a specific chart and this isn't it
+        if target_chart_id and spec.get("chart_id") != target_chart_id:
+            continue
+
+        # Initialize config if not present
+        if "config" not in spec:
+            spec["config"] = {}
+
+        # Apply mark color
+        if theme_config.get("mark_color"):
+            mark = spec.get("mark", {})
+            if isinstance(mark, dict):
+                mark["color"] = theme_config["mark_color"]
+            else:
+                spec["mark"] = {"type": mark, "color": theme_config["mark_color"]}
+
+        # Apply color scheme to encoding
+        if theme_config.get("color_scheme"):
+            encoding = spec.get("encoding", {})
+            if "color" in encoding:
+                encoding["color"]["scale"] = {"scheme": theme_config["color_scheme"]}
+
+        # Apply background
+        if theme_config.get("background"):
+            spec["config"]["background"] = theme_config["background"]
+
+        # Apply title styling
+        if theme_config.get("title_color"):
+            spec["config"]["title"] = spec["config"].get("title", {})
+            spec["config"]["title"]["color"] = theme_config["title_color"]
+
+        # Apply axis styling
+        if theme_config.get("axis_color"):
+            spec["config"]["axis"] = spec["config"].get("axis", {})
+            spec["config"]["axis"]["labelColor"] = theme_config["axis_color"]
+            spec["config"]["axis"]["titleColor"] = theme_config["axis_color"]
+            spec["config"]["axis"]["tickColor"] = theme_config["axis_color"]
+            spec["config"]["axis"]["domainColor"] = theme_config["axis_color"]
+
+        # Apply grid styling
+        if theme_config.get("grid_color"):
+            spec["config"]["axis"] = spec["config"].get("axis", {})
+            spec["config"]["axis"]["gridColor"] = theme_config["grid_color"]
+
+        chart_id = spec.get("chart_id", "unknown")
+        logger.info(f"Applied theme to {chart_id}")
+
+    return {"individual_specs": individual_specs}
+
+
+def _get_fallback_theme(theme_desc: str) -> Dict[str, Any]:
+    """Fallback theme mapping when LLM fails."""
+    theme_desc_lower = theme_desc.lower()
+
+    # Color keywords
+    if "blue" in theme_desc_lower:
+        return {"mark_color": "#3498db", "color_scheme": "blues"}
+    elif "green" in theme_desc_lower:
+        return {"mark_color": "#2ecc71", "color_scheme": "greens"}
+    elif "red" in theme_desc_lower:
+        return {"mark_color": "#e74c3c", "color_scheme": "reds"}
+    elif "orange" in theme_desc_lower:
+        return {"mark_color": "#e67e22", "color_scheme": "oranges"}
+    elif "purple" in theme_desc_lower:
+        return {"mark_color": "#9b59b6", "color_scheme": "purples"}
+    elif "pink" in theme_desc_lower:
+        return {"mark_color": "#e91e63", "color_scheme": "set2"}
+    elif "grey" in theme_desc_lower or "gray" in theme_desc_lower:
+        return {"mark_color": "#7f8c8d", "color_scheme": "greys"}
+
+    # Style keywords
+    elif "dark" in theme_desc_lower:
+        return {
+            "background": "#1a1a2e",
+            "title_color": "#ffffff",
+            "axis_color": "#888888",
+            "grid_color": "#333344",
+            "mark_color": "#6c5ce7",
+        }
+    elif "light" in theme_desc_lower:
+        return {
+            "background": "#ffffff",
+            "title_color": "#2d3436",
+            "axis_color": "#636e72",
+            "grid_color": "#dfe6e9",
+        }
+    elif "warm" in theme_desc_lower:
+        return {"mark_color": "#e74c3c", "color_scheme": "oranges"}
+    elif "cool" in theme_desc_lower:
+        return {"mark_color": "#3498db", "color_scheme": "blues"}
+    elif "pastel" in theme_desc_lower:
+        return {"color_scheme": "pastel1"}
+    elif "corporate" in theme_desc_lower or "professional" in theme_desc_lower:
+        return {"mark_color": "#2c3e50", "color_scheme": "tableau10"}
 
     return {}
 
