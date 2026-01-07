@@ -15,6 +15,10 @@ import { Move, Unlock, Save, RotateCcw, Download, Sparkles, Trash2, Code, FileTe
 import { useTheme } from '@/contexts/ThemeContext';
 import { exportDashboardToPDF } from '@/lib/pdf-export';
 import { EmptyState } from '@/components/ui/empty-state';
+import { ChartCustomizationPanel } from './ChartCustomizationPanel';
+import { useChartCustomization } from '@/hooks/useChartCustomization';
+import { applyCustomization, getVegaTheme } from '@/lib/apply-customization';
+import type { ChartCustomization } from '@/types/chart-customization';
 
 interface ChartRendererProps {
     dashboard?: ComposedDashboardSpec;
@@ -37,10 +41,11 @@ const DEBUG_MODE = import.meta.env.VITE_DEBUG_MODE === 'true';
 interface IndividualChartProps {
     spec: Record<string, any>;
     chartId: string;
+    customization?: ChartCustomization;
     onFilterChange?: (filters: Record<string, any>) => void;
 }
 
-const IndividualChart = ({ spec, chartId: _chartId, onFilterChange }: IndividualChartProps) => {
+const IndividualChart = ({ spec, chartId: _chartId, customization, onFilterChange }: IndividualChartProps) => {
     const containerRef = useRef<HTMLDivElement>(null);
     const viewRef = useRef<any>(null);
     const resizeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -53,10 +58,18 @@ const IndividualChart = ({ spec, chartId: _chartId, onFilterChange }: Individual
         const cleanSpec = { ...spec };
         delete cleanSpec.chart_id;
 
+        console.log('IndividualChart effect:', { chartId: _chartId, customization });
+
+        // Apply customization to spec
+        const customizedSpec = customization
+            ? applyCustomization(cleanSpec, customization)
+            : cleanSpec;
+
+
         // Add selection for interactivity if not present
         // This ensures the chart captures click events even if the agent didn't explicity add selection
-        if (!cleanSpec.selection && (typeof cleanSpec.mark === 'string' || (cleanSpec.mark && cleanSpec.mark.type !== 'arc'))) {
-            cleanSpec.selection = {
+        if (!customizedSpec.selection && (typeof customizedSpec.mark === 'string' || (customizedSpec.mark && customizedSpec.mark.type !== 'arc'))) {
+            customizedSpec.selection = {
                 "select": {
                     "type": "point",
                     "on": "click",
@@ -64,6 +77,7 @@ const IndividualChart = ({ spec, chartId: _chartId, onFilterChange }: Individual
                 }
             };
         }
+
 
         const renderChart = () => {
             if (!containerRef.current) return;
@@ -88,16 +102,22 @@ const IndividualChart = ({ spec, chartId: _chartId, onFilterChange }: Individual
                 }
             } : {};
 
-            // Configure view config to potentially override background
+            // Custom theme from customization or default to app theme
+            const vegaTheme = customization?.theme
+                ? getVegaTheme(customization.theme)
+                : (resolvedTheme === 'dark' ? 'dark' : 'quartz');
+
+            // Override background if specified in customization (handled in applyCustomization via config.background)
+            // But we also need to respect the transparent background default if not customized
             const config = {
-                background: 'transparent', // Ensure chart background is transparent
-                view: { stroke: 'transparent' } // Remove view border if present
+                background: customization?.backgroundColor || 'transparent',
+                view: { stroke: 'transparent' } 
             };
 
-            embed(containerRef.current, cleanSpec, {
+            embed(containerRef.current, customizedSpec, {
                 mode: 'vega-lite',
                 actions: { export: true, source: false, compiled: false, editor: false },
-                theme: resolvedTheme === 'dark' ? 'dark' : 'quartz',
+                theme: vegaTheme as any,
                 renderer: 'svg',
                 config: config,
                 ...loaderOptions,
@@ -114,8 +134,8 @@ const IndividualChart = ({ spec, chartId: _chartId, onFilterChange }: Individual
 
                             // Identify potential dimension fields from the spec's encoding
                             const dimensionFields = new Set<string>();
-                            if (cleanSpec.encoding) {
-                                Object.values(cleanSpec.encoding).forEach((enc: any) => {
+                            if (customizedSpec.encoding) {
+                                Object.values(customizedSpec.encoding).forEach((enc: any) => {
                                     // Check for nominal, ordinal, or temporal types
                                     // Also include if no type is specified but it looks like a dimension (e.g., having 'field')
                                     if (enc.field && (
@@ -177,7 +197,7 @@ const IndividualChart = ({ spec, chartId: _chartId, onFilterChange }: Individual
                 viewRef.current.finalize();
             }
         };
-    }, [spec, onFilterChange]);
+    }, [spec, customization, onFilterChange]);
 
     return (
         <div
@@ -213,6 +233,14 @@ export const ChartRenderer: React.FC<ChartRendererProps> = ({
     const [refineInputs, setRefineInputs] = useState<Record<string, string>>({});
     const [openPopovers, setOpenPopovers] = useState<Record<string, boolean>>({});
     const [copiedStates, setCopiedStates] = useState<Record<string, boolean>>({});
+
+    const {
+        getCustomization,
+        setCustomization,
+        clearCustomization
+    } = useChartCustomization({
+        sessionId: sessionId || null,
+    });
 
     const handleRefineSubmit = (chartId: string) => {
         const feedback = refineInputs[chartId];
@@ -722,6 +750,28 @@ export const ChartRenderer: React.FC<ChartRendererProps> = ({
                                             )}
 
                                             <div className="flex items-center gap-1">
+                                                {!editMode && (
+                                                    <div className="flex items-center gap-1 mr-1">
+                                                        <ChartCustomizationPanel
+                                                            chartId={chartId}
+                                                            currentTitle={spec.title as string}
+                                                            customization={getCustomization(chartId)}
+                                                            onCustomizationChange={(c) => setCustomization(chartId, c)}
+                                                        />
+                                                        {Object.keys(getCustomization(chartId)).length > 0 && (
+                                                            <Button
+                                                                variant="ghost"
+                                                                size="icon"
+                                                                className="h-6 w-6 text-muted-foreground hover:text-destructive"
+                                                                title="Reset customization"
+                                                                onClick={() => clearCustomization(chartId)}
+                                                            >
+                                                                <RotateCcw className="h-3.5 w-3.5" />
+                                                            </Button>
+                                                        )}
+                                                    </div>
+                                                )}
+
                                                 {!editMode && onRefine && (
                                                     <Popover
                                                         open={openPopovers[chartId]}
