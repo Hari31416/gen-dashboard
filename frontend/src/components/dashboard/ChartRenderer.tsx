@@ -49,8 +49,42 @@ const IndividualChart = ({ spec, chartId: _chartId, customization, onFilterChang
     const containerRef = useRef<HTMLDivElement>(null);
     const viewRef = useRef<any>(null);
     const resizeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const cachedDataRef = useRef<any[] | null>(null);
+    const specDataUrlRef = useRef<string | null>(null);
     const { resolvedTheme } = useTheme();
 
+    // Fetch data when spec URL changes (not on customization changes)
+    useEffect(() => {
+        if (!spec) return;
+
+        const dataUrl = spec.data?.url;
+
+        // If no URL (inline data) or URL hasn't changed, skip fetch
+        if (!dataUrl || dataUrl === specDataUrlRef.current) {
+            return;
+        }
+
+        specDataUrlRef.current = dataUrl;
+
+        // Fetch and cache the data
+        const fetchData = async () => {
+            const token = localStorage.getItem('token');
+            try {
+                const response = await fetch(dataUrl, {
+                    headers: token ? { 'Authorization': `Bearer ${token}` } : {}
+                });
+                if (response.ok) {
+                    cachedDataRef.current = await response.json();
+                }
+            } catch (error) {
+                console.error('Failed to fetch chart data:', error);
+            }
+        };
+
+        fetchData();
+    }, [spec?.data?.url]);
+
+    // Render chart (runs on spec or customization changes, uses cached data)
     useEffect(() => {
         if (!spec || !containerRef.current) return;
 
@@ -58,16 +92,17 @@ const IndividualChart = ({ spec, chartId: _chartId, customization, onFilterChang
         const cleanSpec = { ...spec };
         delete cleanSpec.chart_id;
 
-        console.log('IndividualChart effect:', { chartId: _chartId, customization });
+        // Use cached data if available to avoid re-fetching
+        if (cachedDataRef.current && cleanSpec.data?.url) {
+            cleanSpec.data = { values: cachedDataRef.current };
+        }
 
         // Apply customization to spec
         const customizedSpec = customization
             ? applyCustomization(cleanSpec, customization)
             : cleanSpec;
 
-
         // Add selection for interactivity if not present
-        // This ensures the chart captures click events even if the agent didn't explicity add selection
         if (!customizedSpec.selection && (typeof customizedSpec.mark === 'string' || (customizedSpec.mark && customizedSpec.mark.type !== 'arc'))) {
             customizedSpec.selection = {
                 "select": {
@@ -77,7 +112,6 @@ const IndividualChart = ({ spec, chartId: _chartId, customization, onFilterChang
                 }
             };
         }
-
 
         const renderChart = () => {
             if (!containerRef.current) return;
@@ -92,6 +126,7 @@ const IndividualChart = ({ spec, chartId: _chartId, customization, onFilterChang
             const token = localStorage.getItem('token');
 
             // Configure loader with auth headers for URL-based data loading
+            // (only used if we don't have cached data)
             const loaderOptions = token ? {
                 loader: {
                     http: {
@@ -107,8 +142,7 @@ const IndividualChart = ({ spec, chartId: _chartId, customization, onFilterChang
                 ? getVegaTheme(customization.theme)
                 : (resolvedTheme === 'dark' ? 'dark' : 'quartz');
 
-            // Override background if specified in customization (handled in applyCustomization via config.background)
-            // But we also need to respect the transparent background default if not customized
+            // Override background if specified in customization
             const config = {
                 background: customization?.backgroundColor || 'transparent',
                 view: { stroke: 'transparent' } 
@@ -136,13 +170,11 @@ const IndividualChart = ({ spec, chartId: _chartId, customization, onFilterChang
                             const dimensionFields = new Set<string>();
                             if (customizedSpec.encoding) {
                                 Object.values(customizedSpec.encoding).forEach((enc: any) => {
-                                    // Check for nominal, ordinal, or temporal types
-                                    // Also include if no type is specified but it looks like a dimension (e.g., having 'field')
                                     if (enc.field && (
                                         enc.type === 'nominal' ||
                                         enc.type === 'ordinal' ||
                                         enc.type === 'temporal' ||
-                                        !enc.type // fallback if type omitted but used as dimension
+                                        !enc.type
                                     )) {
                                         dimensionFields.add(enc.field);
                                     }
@@ -151,10 +183,6 @@ const IndividualChart = ({ spec, chartId: _chartId, customization, onFilterChang
 
                             // Iterate through keys in datum
                             Object.keys(datum).forEach(key => {
-                                // Only use keys that are:
-                                // 1. Identified as dimensions in the encoding
-                                // 2. NOT internal vega fields (starting with _)
-                                // 3. NOT objects/arrays
                                 if (!key.startsWith('_') &&
                                     key !== 'source' &&
                                     typeof datum[key] !== 'object' &&
@@ -164,7 +192,6 @@ const IndividualChart = ({ spec, chartId: _chartId, customization, onFilterChang
                             });
 
                             if (Object.keys(filters).length > 0) {
-                                console.log("Drill-down triggered:", filters);
                                 onFilterChange(filters);
                             }
                         }
@@ -177,7 +204,6 @@ const IndividualChart = ({ spec, chartId: _chartId, customization, onFilterChang
 
         // Set up ResizeObserver with debounced re-render
         const resizeObserver = new ResizeObserver(() => {
-            // Debounce the resize to avoid too many re-renders
             if (resizeTimeoutRef.current) {
                 clearTimeout(resizeTimeoutRef.current);
             }
@@ -197,7 +223,7 @@ const IndividualChart = ({ spec, chartId: _chartId, customization, onFilterChang
                 viewRef.current.finalize();
             }
         };
-    }, [spec, customization, onFilterChange]);
+    }, [spec, customization, onFilterChange, resolvedTheme]);
 
     return (
         <div
@@ -240,6 +266,8 @@ export const ChartRenderer: React.FC<ChartRendererProps> = ({
         clearCustomization
     } = useChartCustomization({
         sessionId: sessionId || null,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        initialCustomizations: (dashboard as any)?.chart_customizations,
     });
 
     const handleRefineSubmit = (chartId: string) => {
@@ -992,6 +1020,7 @@ export const ChartRenderer: React.FC<ChartRendererProps> = ({
                                             <IndividualChart
                                                 spec={spec}
                                                 chartId={chartId}
+                                                customization={getCustomization(chartId)}
                                                 onFilterChange={editMode ? undefined : onFilterChange}
                                             />
                                         </div>

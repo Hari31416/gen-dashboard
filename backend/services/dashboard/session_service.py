@@ -328,3 +328,43 @@ def delete_dashboard_session(
     result = collection.delete_one({"session_id": session_id})
 
     return result.deleted_count > 0
+
+
+def update_chart_customizations(
+    username: str,
+    session_id: str,
+    chart_customizations: Dict[str, Any],
+) -> bool:
+    """
+    Update chart customization settings for a dashboard session.
+
+    This stores user's visual preferences (colors, themes, axis settings, etc.)
+    for individual charts in MongoDB.
+
+    Args:
+        username: User's username
+        session_id: Session ID
+        chart_customizations: Dict mapping chart_id -> customization settings
+
+    Returns:
+        True if updated, False if not found
+    """
+    collection = get_dashboard_sessions_collection(username)
+
+    update_doc = {
+        "$set": {
+            "chart_customizations": chart_customizations,
+            "updated_at": datetime.utcnow(),
+        }
+    }
+
+    result = collection.update_one(
+        {"session_id": session_id},
+        update_doc,
+    )
+
+    logger.info(
+        f"Updated chart customizations for session {session_id}: "
+        f"modified={result.modified_count > 0}"
+    )
+    return result.modified_count > 0

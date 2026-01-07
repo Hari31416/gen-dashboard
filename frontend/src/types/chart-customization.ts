@@ -65,11 +65,11 @@ export interface ChartCustomization {
   // Colors
   colorPalette?: ColorPalette
   customColors?: string[]  // User-defined array of hex colors
+  markColor?: string       // Single color for charts without color encoding
   
   // Titles
   title?: string
   titleFontSize?: number
-  subtitle?: string
   
   // Axes
   xAxis?: AxisConfig

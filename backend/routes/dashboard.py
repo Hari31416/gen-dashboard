@@ -32,6 +32,7 @@ from services.dashboard.session_service import (
     get_dashboard_session,
     update_dashboard_session,
     update_dashboard_layout,
+    update_chart_customizations,
     list_dashboard_sessions,
     delete_dashboard_session,
 )
@@ -953,5 +954,49 @@ async def update_layout(
     return {
         "success": True,
         "message": "Layout updated successfully",
+        "session_id": session_id,
+    }
+
+
+@router.patch("/sessions/{session_id}/customizations")
+async def update_chart_customizations_route(
+    session_id: str,
+    request: dict,
+    current_user: User = Depends(get_current_active_user),
+):
+    """
+    Update chart customizations for a dashboard session.
+
+    Stores user's visual preferences (colors, themes, axis settings)
+    for charts in MongoDB.
+    """
+    username = current_user.username
+
+    logger.info(f"Chart customization update from {username} for session: {session_id}")
+
+    # Check if session exists
+    session = get_dashboard_session(username, session_id)
+
+    if not session:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Session {session_id} not found",
+        )
+
+    # Get customizations from request body
+    customizations = request.get("customizations", {})
+
+    # Update the customizations
+    updated = update_chart_customizations(username, session_id, customizations)
+
+    if not updated:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to update customizations",
+        )
+
+    return {
+        "success": True,
+        "message": "Customizations updated successfully",
         "session_id": session_id,
     }

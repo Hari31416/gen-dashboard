@@ -67,7 +67,16 @@ export const dashboardApi = {
     deleteChart: async (sessionId: string, chartId: string): Promise<DashboardResponse> => {
         const response = await api.delete(`/dashboard/${sessionId}/chart/${chartId}`);
         return response.data;
-    }
+    },
+    updateChartCustomizations: async (
+        sessionId: string,
+        customizations: Record<string, unknown>
+    ): Promise<{ success: boolean; message: string; session_id: string }> => {
+        const response = await api.patch(`/dashboard/sessions/${sessionId}/customizations`, {
+            customizations
+        });
+        return response.data;
+    },
 };
 
 import type {

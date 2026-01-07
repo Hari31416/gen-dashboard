@@ -13,15 +13,7 @@ export function applyCustomization(
 
   // Apply title customization
   if (customization.title !== undefined) {
-    if (customization.subtitle) {
-      newSpec.title = {
-        text: customization.title,
-        subtitle: customization.subtitle,
-        fontSize: customization.titleFontSize ?? 14,
-      }
-    } else {
-      newSpec.title = customization.title || undefined
-    }
+    newSpec.title = customization.title || undefined
   }
 
   // Build config object
@@ -119,6 +111,18 @@ export function applyCustomization(
     config.title = {
       ...(config.title as object || {}),
       fontSize: customization.titleFontSize,
+    }
+  }
+
+  // Apply mark color for single-color charts (charts without color encoding)
+  if (customization.markColor) {
+    const mark = newSpec.mark
+    if (typeof mark === 'string') {
+      // Convert simple mark to object form
+      newSpec.mark = { type: mark, color: customization.markColor }
+    } else if (mark && typeof mark === 'object') {
+      // Add color to existing mark object
+      (mark as Record<string, unknown>).color = customization.markColor
     }
   }
 

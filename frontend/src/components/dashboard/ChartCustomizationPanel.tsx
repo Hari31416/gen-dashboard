@@ -104,10 +104,49 @@ export const ChartCustomizationPanel: React.FC<ChartCustomizationPanelProps> = (
         <div className="p-4 space-y-4 max-h-[400px] overflow-y-auto">
           {/* Colors Tab */}
           {activeTab === 'colors' && (
-            <ColorPaletteSelector
-              selected={customization.colorPalette}
-              onSelect={(palette) => updateCustomization({ colorPalette: palette })}
-            />
+            <div className="space-y-4">
+              {/* Single color for charts without color encoding */}
+              <div className="space-y-2">
+                <Label className="text-xs text-muted-foreground uppercase tracking-wide">
+                  Chart Color (single-color charts)
+                </Label>
+                <div className="flex gap-2">
+                  <Input
+                    type="color"
+                    value={customization.markColor ?? '#4e79a7'}
+                    onChange={(e) => updateCustomization({ markColor: e.target.value })}
+                    className="w-12 h-8 p-1 cursor-pointer"
+                  />
+                  <Input
+                    value={customization.markColor ?? ''}
+                    onChange={(e) => updateCustomization({ markColor: e.target.value || undefined })}
+                    placeholder="Default"
+                    className="flex-1 h-8"
+                  />
+                  {customization.markColor && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-8 px-2"
+                      onClick={() => updateCustomization({ markColor: undefined })}
+                    >
+                      Clear
+                    </Button>
+                  )}
+                </div>
+              </div>
+
+              {/* Color palettes for multi-color charts */}
+              <div className="pt-2 border-t">
+                <Label className="text-xs text-muted-foreground uppercase tracking-wide mb-2 block">
+                  Color Palette (multi-series charts)
+                </Label>
+                <ColorPaletteSelector
+                  selected={customization.colorPalette}
+                  onSelect={(palette) => updateCustomization({ colorPalette: palette })}
+                />
+              </div>
+            </div>
           )}
 
           {/* Text Tab */}
@@ -139,15 +178,6 @@ export const ChartCustomizationPanel: React.FC<ChartCustomizationPanelProps> = (
                     ))}
                   </SelectContent>
                 </Select>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="subtitle">Subtitle</Label>
-                <Input
-                  id="subtitle"
-                  value={customization.subtitle ?? ''}
-                  onChange={(e) => updateCustomization({ subtitle: e.target.value })}
-                  placeholder="Optional subtitle..."
-                />
               </div>
             </div>
           )}
