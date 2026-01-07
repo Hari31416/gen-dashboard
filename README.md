@@ -8,38 +8,40 @@ The **AI Dashboard** leverages a sophisticated **multi-agent pipeline** to autom
 
 ### Key Features
 
--   **Natural Language to Dashboard**: Just ask for what you want to see.
--   **Multi-Agent Architecture**: A 4-stage pipeline (Strategy, Data, Viz Spec, Layout) ensures high-quality, reasoned outputs.
--   **Interactive Visualizations**: Powered by **Vega-Lite** for rich, interactive charts.
--   **Drill-Down & Refinement**: Click on charts to filter data or ask follow-up questions to refine the dashboard.
--   **Secure SQL Execution**: Built-in sanitization and validation to prevent unsafe database operations.
--   **Modern UI**: A responsive, "dark mode" aesthetic built with React and Tailwind CSS.
+- **Natural Language to Dashboard**: Just ask for what you want to see.
+- **Multi-Agent Architecture**: A 4-stage pipeline (Strategy, Data, Viz Spec, Layout) ensures high-quality, reasoned outputs.
+- **Interactive Visualizations**: Powered by **Vega-Lite** for rich, interactive charts.
+- **Drill-Down & Refinement**: Click on charts to filter data or ask follow-up questions to refine the dashboard.
+- **Secure SQL Execution**: Built-in sanitization and validation to prevent unsafe database operations.
+- **Modern UI**: A responsive, "dark mode" aesthetic built with React and Tailwind CSS.
 
 ## 🏗️ Architecture
 
 The system is built on a robust modern stack:
 
 ### Backend
--   **FastAPI**: High-performance async API framework.
--   **LangGraph / LangChain**: Orchestrates the sequential agent workflow.
--   **LLMs**: Powered by OpenAI (GPT-4o) or Google Gemini.
--   **SQLAlchemy**: Database ORM for secure data access.
--   **Pydantic**: Enforcing strict schema validation for all agent outputs.
+
+- **FastAPI**: High-performance async API framework.
+- **LangGraph / LangChain**: Orchestrates the sequential agent workflow.
+- **LLMs**: Powered by OpenAI (GPT-4o) or Google Gemini.
+- **SQLAlchemy**: Database ORM for secure data access.
+- **Pydantic**: Enforcing strict schema validation for all agent outputs.
 
 ### Frontend
--   **React**: Component-based UI library.
--   **Vite**: Fast build tool and dev server.
--   **Tailwind CSS**: Utility-first styling framework.
--   **Vega-Embed**: Embedding Vega-Lite visualizations.
+
+- **React**: Component-based UI library.
+- **Vite**: Fast build tool and dev server.
+- **Tailwind CSS**: Utility-first styling framework.
+- **Vega-Embed**: Embedding Vega-Lite visualizations.
 
 ## 🛠️ Prerequisites
 
 Before you begin, ensure you have the following installed:
 
--   **Python 3.11+**
--   **Node.js 18+** & **npm**
--   **Docker** (for running the database container, i.e., MongoDB)
--   **uv** (fast Python package installer & resolver) - Optional but recommended.
+- **Python 3.11+**
+- **Node.js 18+** & **npm**
+- **Docker** (for running the database container, i.e., MongoDB)
+- **uv** (fast Python package installer & resolver) - Optional but recommended.
 
 ## 🚦 Getting Started
 
@@ -70,8 +72,9 @@ make setup
 ```
 
 This command will:
--   Create a Python virtual environment and install backend requirements.
--   Install frontend Node.js packages.
+
+- Create a Python virtual environment and install backend requirements.
+- Install frontend Node.js packages.
 
 ### 4. Start the Application
 
@@ -81,21 +84,21 @@ Start both the backend and frontend servers with a single command:
 make start
 ```
 
--   **Frontend**: http://localhost:5173
--   **Backend API**: http://localhost:8000
+- **Frontend**: <http://localhost:5173>
+- **Backend API**: <http://localhost:8000>
 
 ## 🎮 Usage
 
-1.  **Open the App**: Navigate to `http://localhost:5173`.
-2.  **Enter a Prompt**: In the input box, type a request like "Analyze the sales performance by region for the last 12 months."
-3.  **View Dashboard**: The system will plan, fetch data, and generate a dashboard.
-4.  **Refine**:
-    -   **Click** on a bar or point to filter the rest of the dashboard.
-    -   **Chat** to refine: "Switch the trend chart to a line chart."
+1. **Open the App**: Navigate to `<http://localhost:5173>`.
+2. **Enter a Prompt**: In the input box, type a request like "Analyze the sales performance by region for the last 12 months."
+3. **View Dashboard**: The system will plan, fetch data, and generate a dashboard.
+4. **Refine**:
+   - **Click** on a bar or point to filter the rest of the dashboard.
+   - **Chat** to refine: "Switch the trend chart to a line chart."
 
 ## 📦 Project Structure
 
-```
+```txt
 ai-dashboard/
 ├── backend/            # FastAPI application & Agent logic
 ├── frontend/           # React + Vite application
@@ -107,12 +110,12 @@ ai-dashboard/
 
 ## 🔧 Useful Commands
 
-| Command | Description |
-| :--- | :--- |
+| Command      | Description                                   |
+| :----------- | :-------------------------------------------- |
 | `make setup` | Install all dependencies (Backend + Frontend) |
-| `make start` | Start both servers |
-| `make stop` | Stop both servers |
-| `make up` | Start Docker containers (DB) |
+| `make start` | Start both servers                            |
+| `make stop`  | Stop both servers                             |
+| `make up`    | Start Docker containers (DB)                  |
 
 ## 🤝 Contributing
 

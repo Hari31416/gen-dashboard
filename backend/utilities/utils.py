@@ -1,6 +1,6 @@
 from dotenv import load_dotenv
 import logging
-from env import *
+from env import LOG_LEVEL, MATPLOTLIB_COLOR_MODE, PLOTLY_COLOR_MODE
 import plotly.graph_objects as go
 from textwrap import wrap
 
