@@ -17,7 +17,7 @@ import { exportDashboardToPDF } from '@/lib/pdf-export';
 import { EmptyState } from '@/components/ui/empty-state';
 import { ChartCustomizationPanel } from './ChartCustomizationPanel';
 import { useChartCustomization } from '@/hooks/useChartCustomization';
-import { applyCustomization, getVegaTheme } from '@/lib/apply-customization';
+import { applyCustomization } from '@/lib/apply-customization';
 import type { ChartCustomization } from '@/types/chart-customization';
 
 interface ChartRendererProps {
@@ -138,22 +138,180 @@ const IndividualChart = ({ spec, chartId: _chartId, customization, onFilterChang
             } : {};
 
             // Custom theme from customization or default to app theme
-            const vegaTheme = customization?.theme
-                ? getVegaTheme(customization.theme)
+            const effectiveTheme = customization?.theme && customization.theme !== 'default'
+                ? customization.theme
                 : (resolvedTheme === 'dark' ? 'dark' : 'quartz');
 
-            // Override background if specified in customization
-            const config = {
-                background: customization?.backgroundColor || 'transparent',
-                view: { stroke: 'transparent' } 
+            // Determine if the *chart* is in dark mode
+            const isDarkChart = effectiveTheme === 'dark';
+
+            // Helper to strip hardcoded colors from guides so theme applies
+            const stripColors = (obj: any): any => {
+                if (!obj || typeof obj !== 'object') return obj;
+                if (Array.isArray(obj)) return obj.map(stripColors);
+
+                const newObj = { ...obj };
+                // Strip explicit color styling from guides
+                const colorKeys = ['color', 'fill', 'stroke', 'labelColor', 'titleColor', 'tickColor', 'domainColor', 'gridColor'];
+                colorKeys.forEach(key => {
+                    if (key in newObj && typeof newObj[key] === 'string') {
+                        // Only strip if it looks like a hardcoded color (simple heuristic)
+                        // Actually, just strip it. Theme config should rule.
+                        delete newObj[key];
+                    }
+                });
+
+                // Recurse into nested objects for deep cleaning if needed
+                // But for guides, usually flat.
+                return newObj;
             };
 
-            embed(containerRef.current, customizedSpec, {
+            const sanitizeSpecForTheme = (obj: any): any => {
+                if (!obj || typeof obj !== 'object') return obj;
+                if (Array.isArray(obj)) return obj.map(sanitizeSpecForTheme);
+
+                const newObj = { ...obj };
+
+                // Identify guide objects
+                ['title', 'axis', 'legend', 'header'].forEach(key => {
+                    if (newObj[key]) {
+                        // If it's an object, strip colors
+                        if (typeof newObj[key] === 'object') {
+                            newObj[key] = stripColors(newObj[key]);
+                        }
+                        // If it's a string (title shortcut), leave it (config rules)
+                    }
+                });
+
+                // Handle encoding channels
+                if (newObj.encoding) {
+                    const newEncoding = { ...newObj.encoding };
+                    Object.keys(newEncoding).forEach(channel => {
+                        const def = newEncoding[channel];
+                        if (def && typeof def === 'object') {
+                            const newDef = { ...def };
+
+                            // Strip constant color encodings
+                            if ((channel === 'color' || channel === 'fill' || channel === 'stroke') && 'value' in newDef && typeof newDef.value === 'string') {
+                                delete newEncoding[channel];
+                                return;
+                            }
+
+                            ['axis', 'legend', 'header'].forEach(guide => {
+                                if (newDef[guide] && typeof newDef[guide] === 'object') {
+                                    newDef[guide] = stripColors(newDef[guide]);
+                                }
+                            });
+                            newEncoding[channel] = newDef;
+                        }
+                    });
+                    newObj.encoding = newEncoding;
+                }
+
+                // Recurse common nesting keys
+                ['layer', 'hconcat', 'vconcat', 'spec'].forEach(key => {
+                    if (newObj[key]) {
+                        newObj[key] = sanitizeSpecForTheme(newObj[key]);
+                    }
+                });
+
+                return newObj;
+            };
+
+            // Apply sanitization if strict theming is needed
+            // We do this to ensure backend generated hardcoded colors don't break dark mode
+            const finalizedSpec = sanitizeSpecForTheme(customizedSpec);
+
+            // Dynamic colors based on chart theme
+            const textColor = isDarkChart ? '#ffffff' : 'hsl(222.2, 47.4%, 11.2%)';
+            const subtitleColor = isDarkChart ? '#ededf1ff' : 'hsl(215.4, 16.3%, 46.9%)'; // Zinc-400 for subtitle
+            // Use 10% opacity white for grid in dark mode
+            const gridColor = isDarkChart ? 'rgba(255, 255, 255, 0.1)' : 'hsl(214.3, 31.8%, 91.4%)';
+
+            // Determine background color
+            // 1. Use user customization if set
+            // 2. If chart theme matches app theme, use transparent (blends with card)
+            // 3. If chart theme contrasts app theme (e.g. Dark chart in Light app), force background color
+            let backgroundColor = customization?.backgroundColor;
+            if (!backgroundColor) {
+                const isAppDark = resolvedTheme === 'dark';
+                if (isDarkChart !== isAppDark) {
+                    // Contrasting themes - need opaque background
+                    backgroundColor = isDarkChart ? '#1e1e1e' : '#ffffff';
+                } else {
+                    // Matching themes - can use transparent
+                    backgroundColor = 'transparent';
+                }
+            }
+
+            // Force background on spec to ensure it applies
+            // Update FINALIZED spec, not customizedSpec
+            finalizedSpec.background = backgroundColor;
+
+            // Build dark mode config - merge into spec's config for highest precedence
+            const themeConfig = {
+                background: backgroundColor,
+                view: { stroke: 'transparent', fill: 'transparent' },
+                // Title styling
+                title: {
+                    color: textColor,
+                    subtitleColor: subtitleColor,
+                },
+                // Global Axis styling
+                axis: {
+                    labelColor: textColor,
+                    titleColor: textColor,
+                    gridColor: gridColor,
+                    domainColor: gridColor,
+                    tickColor: gridColor,
+                },
+                // Specific Axis overrides to ensure consistency
+                axisBand: {
+                    labelColor: textColor,
+                    titleColor: textColor,
+                },
+                axisQuantitative: {
+                    labelColor: textColor,
+                    titleColor: textColor,
+                },
+                axisTemporal: {
+                    labelColor: textColor,
+                    titleColor: textColor,
+                },
+                // Legend styling
+                legend: {
+                    labelColor: textColor,
+                    titleColor: textColor,
+                },
+                // Header styling
+                header: {
+                    labelColor: textColor,
+                    titleColor: textColor,
+                },
+                // Text mark styling
+                text: {
+                    fill: textColor,
+                    color: textColor,
+                },
+                // General Styles (backup for specific guides)
+                style: {
+                    'guide-label': { fill: textColor },
+                    'guide-title': { fill: textColor },
+                },
+                // Arc styling
+                arc: {
+                    stroke: backgroundColor,
+                },
+            };
+
+            // Merge our theme config into the spec's config (spec config has highest precedence)
+            const existingConfig = (finalizedSpec.config as Record<string, unknown>) || {};
+            finalizedSpec.config = { ...existingConfig, ...themeConfig };
+
+            embed(containerRef.current, finalizedSpec, {
                 mode: 'vega-lite',
                 actions: { export: true, source: false, compiled: false, editor: false },
-                theme: vegaTheme as any,
                 renderer: 'svg',
-                config: config,
                 ...loaderOptions,
             }).then((result: any) => {
                 viewRef.current = result.view;

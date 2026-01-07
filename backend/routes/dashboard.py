@@ -7,7 +7,7 @@ All endpoints require authentication.
 
 import uuid
 from fastapi import APIRouter, Depends, HTTPException, status
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 
 from routes.auth import get_current_active_user, User
 from langchain_agents.dashboard.models import (
@@ -26,6 +26,7 @@ from langchain_agents.dashboard.graph import (
     run_dashboard_generation,
     run_dashboard_refresh,
     run_selective_refinement,
+    stream_dashboard_generation,
 )
 from services.dashboard.session_service import (
     save_dashboard_session,
@@ -44,6 +45,11 @@ from services.database.db_connection_service import (
     build_connection_string,
 )
 from services.database.db_config_models import get_db_config
+from services.sse_utils import (
+    format_progress_event,
+    format_complete_event,
+    format_error_event,
+)
 from utilities import create_simple_logger
 
 logger = create_simple_logger(__name__)
@@ -380,6 +386,144 @@ async def generate_dashboard(
             dashboard=None,
             error=str(e),
         )
+
+
+@router.post("/generate/stream")
+async def generate_dashboard_stream(
+    request: DashboardGenerateRequest,
+    current_user: User = Depends(get_current_active_user),
+):
+    """
+    Generate a dashboard with real-time progress updates via SSE.
+
+    Returns a Server-Sent Events stream with:
+    - 'progress' events: {stage, progress, message, details}
+    - 'complete' event: {success, session_id, dashboard, ...}
+    - 'error' event: {error, failed_stage}
+    """
+    username = current_user.username
+    session_id = str(uuid.uuid4())
+
+    logger.info(
+        f"Streaming dashboard generation request from {username}: {request.user_prompt[:100]}..."
+    )
+
+    async def event_generator():
+        async for event in stream_dashboard_generation(
+            user_prompt=request.user_prompt,
+            username=username,
+            connection_name=request.connection_name,
+            session_id=session_id,
+            max_charts=request.max_charts,
+            theme=request.theme or "default",
+        ):
+            event_type = event.get("type")
+
+            if event_type == "progress":
+                yield format_progress_event(
+                    stage=event["stage"],
+                    progress=event["progress"],
+                    message=event["message"],
+                    details=event.get("details"),
+                )
+
+            elif event_type == "complete":
+                result = event["result"]
+                dashboard_spec = result.get("dashboard_spec")
+
+                # Save session (same as non-streaming endpoint)
+                if dashboard_spec:
+                    try:
+                        save_dashboard_session(
+                            username=username,
+                            session_id=session_id,
+                            user_prompt=request.user_prompt,
+                            connection_name=request.connection_name,
+                            dashboard_spec=dashboard_spec,
+                            chart_goals=result.get("chart_goals", []),
+                            sql_queries=dashboard_spec.get("sql_queries", []),
+                            generation_time_ms=result.get("total_time_ms", 0),
+                        )
+                        logger.info(f"Dashboard session {session_id} saved to MongoDB")
+                    except Exception as save_error:
+                        logger.error(f"Failed to save session: {save_error}")
+
+                # Build response (same structure as non-streaming)
+                layout_config = None
+                if dashboard_spec and dashboard_spec.get("layout_config"):
+                    lc = dashboard_spec["layout_config"]
+                    layout_config = {
+                        "cols": lc.get("cols", 12),
+                        "row_height": lc.get("row_height", 100),
+                        "layout": lc.get("layout", []),
+                        "custom": lc.get("custom", False),
+                    }
+
+                response_data = {
+                    "success": True,
+                    "session_id": session_id,
+                    "dashboard": (
+                        {
+                            "title": (
+                                dashboard_spec.get("title", "Dashboard")
+                                if dashboard_spec
+                                else None
+                            ),
+                            "description": (
+                                dashboard_spec.get("description")
+                                if dashboard_spec
+                                else None
+                            ),
+                            "vega_lite_spec": (
+                                dashboard_spec.get("vega_lite_spec", {})
+                                if dashboard_spec
+                                else {}
+                            ),
+                            "individual_specs": (
+                                dashboard_spec.get("individual_specs", [])
+                                if dashboard_spec
+                                else []
+                            ),
+                            "layout_config": layout_config,
+                            "layout_type": (
+                                dashboard_spec.get("layout_type", "grid")
+                                if dashboard_spec
+                                else "grid"
+                            ),
+                            "chart_count": (
+                                dashboard_spec.get("chart_count", 0)
+                                if dashboard_spec
+                                else 0
+                            ),
+                            "sql_queries": (
+                                dashboard_spec.get("sql_queries", [])
+                                if dashboard_spec
+                                else []
+                            ),
+                        }
+                        if dashboard_spec
+                        else None
+                    ),
+                    "generation_time_ms": result.get("total_time_ms"),
+                }
+
+                yield format_complete_event(response_data)
+
+            elif event_type == "error":
+                yield format_error_event(
+                    error=event["error"],
+                    stage=event.get("stage"),
+                )
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",  # Disable nginx buffering
+        },
+    )
 
 
 @router.post("/refine", response_model=DashboardResponse)

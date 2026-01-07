@@ -58,17 +58,20 @@ export function useChartCustomization(options: UseChartCustomizationOptions) {
         localStorage.removeItem(storageKey)
       }
 
-      // Debounce backend save
-      if (saveTimeoutRef.current) {
-        clearTimeout(saveTimeoutRef.current)
-      }
-      saveTimeoutRef.current = setTimeout(async () => {
-        try {
-          await dashboardApi.updateChartCustomizations(sessionId, customizations)
-        } catch (error) {
-          console.warn('Failed to save customizations to backend:', error)
+      // Debounce backend save - only save if there are customizations
+      // Skip saving empty {} to avoid overwriting stored customizations
+      if (Object.keys(customizations).length > 0) {
+        if (saveTimeoutRef.current) {
+          clearTimeout(saveTimeoutRef.current)
         }
-      }, 1000) // 1 second debounce
+        saveTimeoutRef.current = setTimeout(async () => {
+          try {
+            await dashboardApi.updateChartCustomizations(sessionId, customizations)
+          } catch (error) {
+            console.warn('Failed to save customizations to backend:', error)
+          }
+        }, 1000) // 1 second debounce
+      }
 
     } catch (error) {
       console.warn('Failed to save chart customizations:', error)

@@ -11,7 +11,7 @@ sequential agent pipeline:
 
 import time
 import uuid
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, AsyncGenerator
 
 from langgraph.graph import StateGraph, END
 
@@ -314,3 +314,163 @@ async def run_selective_refinement(
         user_feedback=user_feedback,
         original_prompt=original_prompt,
     )
+
+
+# =============================================================================
+# Streaming Dashboard Generation
+# =============================================================================
+
+# Progress stage mapping with base percentages
+# Dynamic sub-progress within stages (e.g., 0-25 for strategy, 25-50 for data)
+STAGE_PROGRESS = {
+    "strategy": {"base": 0, "end": 25, "message": "Planning chart objectives..."},
+    "data": {
+        "base": 25,
+        "end": 50,
+        "message": "Generating and executing SQL queries...",
+    },
+    "viz_spec": {"base": 50, "end": 75, "message": "Creating visualizations..."},
+    "layout": {"base": 75, "end": 100, "message": "Composing dashboard layout..."},
+    "error_handler": {"base": -1, "end": -1, "message": "Error occurred"},
+}
+
+
+async def stream_dashboard_generation(
+    user_prompt: str,
+    username: str,
+    connection_name: str,
+    session_id: Optional[str] = None,
+    max_charts: int = 10,
+    theme: str = "default",
+) -> AsyncGenerator[dict, None]:
+    """
+    Stream dashboard generation progress using LangGraph's astream().
+
+    Yields progress updates after each stage completes, with dynamic
+    sub-progress within stages based on items processed.
+
+    Yields:
+        dict with either:
+        - {"type": "progress", "stage": str, "progress": int, "message": str}
+        - {"type": "complete", "result": dict}
+        - {"type": "error", "error": str, "stage": str}
+    """
+    start_time = time.time()
+
+    if not session_id:
+        session_id = str(uuid.uuid4())
+
+    logger.info(f"Starting streaming dashboard generation for session {session_id}")
+
+    # Yield initial progress
+    yield {
+        "type": "progress",
+        "stage": "starting",
+        "progress": 0,
+        "message": "Initializing dashboard generation...",
+    }
+
+    # Create initial state
+    initial_state = create_initial_dashboard_state(
+        user_prompt=user_prompt,
+        username=username,
+        connection_name=connection_name,
+        session_id=session_id,
+        max_charts=max_charts,
+        theme=theme,
+    )
+    initial_state["start_time"] = start_time
+
+    graph = get_dashboard_graph()
+
+    try:
+        final_state = None
+
+        # Stream through graph execution
+        async for event in graph.astream(initial_state):
+            # LangGraph stream yields {node_name: state_update} dicts
+            for node_name, state_update in event.items():
+                logger.debug(f"Stream event from node: {node_name}")
+
+                # Get progress info for this stage
+                stage_info = STAGE_PROGRESS.get(node_name, {})
+                base_progress = stage_info.get("base", 0)
+                end_progress = stage_info.get("end", base_progress)
+                message = stage_info.get("message", f"Processing {node_name}...")
+
+                # Check for errors in state update
+                if state_update.get("error"):
+                    yield {
+                        "type": "error",
+                        "error": state_update["error"],
+                        "stage": node_name,
+                    }
+                    return
+
+                # Calculate dynamic sub-progress based on items completed
+                progress = end_progress  # Default to end of stage
+                details = {}
+
+                if node_name == "strategy":
+                    charts_planned = len(state_update.get("chart_goals", []))
+                    details["charts_planned"] = charts_planned
+                    # Dynamic: max_charts requested vs planned
+                    if max_charts > 0:
+                        ratio = min(charts_planned / max_charts, 1.0)
+                        progress = int(
+                            base_progress + (end_progress - base_progress) * ratio
+                        )
+                    progress = end_progress  # Stage complete
+
+                elif node_name == "data":
+                    results = state_update.get("chart_data_results", [])
+                    queries_executed = len(results)
+                    successful = len([r for r in results if not r.get("error")])
+                    details["queries_executed"] = queries_executed
+                    details["successful_queries"] = successful
+                    progress = end_progress  # Stage complete
+
+                elif node_name == "viz_spec":
+                    specs_created = len(state_update.get("viz_specs", []))
+                    details["specs_created"] = specs_created
+                    progress = end_progress  # Stage complete
+
+                elif node_name == "layout":
+                    progress = end_progress  # 100% complete
+
+                # Yield progress update
+                yield {
+                    "type": "progress",
+                    "stage": node_name,
+                    "progress": progress,
+                    "message": message,
+                    "details": details if details else None,
+                }
+
+                # Keep track of final state
+                if final_state is None:
+                    final_state = state_update.copy()
+                else:
+                    final_state.update(state_update)
+
+        # Calculate total time
+        total_time = (time.time() - start_time) * 1000
+        if final_state:
+            final_state["total_time_ms"] = total_time
+            final_state["session_id"] = session_id
+
+        # Yield completion
+        yield {
+            "type": "complete",
+            "result": final_state or {},
+        }
+
+        logger.info(f"Streaming dashboard generation completed in {total_time:.2f}ms")
+
+    except Exception as e:
+        logger.exception(f"Streaming dashboard generation failed: {e}")
+        yield {
+            "type": "error",
+            "error": str(e),
+            "stage": "graph_execution",
+        }

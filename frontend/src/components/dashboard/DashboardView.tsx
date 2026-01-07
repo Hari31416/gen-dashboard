@@ -16,19 +16,21 @@ import {
   SheetTrigger,
   SheetDescription,
 } from "@/components/ui/sheet";
-import { History, Plus, Sparkles, RefreshCw } from "lucide-react";
+import { History, Plus, Sparkles, RefreshCw, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { FilterPanel } from "./FilterPanel";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { useTheme } from "@/contexts/ThemeContext";
 import { useKeyboardShortcuts, KEYBOARD_SHORTCUTS } from "@/hooks/useKeyboardShortcuts";
 import { KeyboardShortcutsDialog } from "@/components/ui/keyboard-shortcuts-dialog";
+import { useStreamingGeneration } from "@/hooks/useStreamingGeneration";
+import { ProgressBar } from "@/components/ui/progress-bar";
+import { Card } from "@/components/ui/card";
 
 export const DashboardView: React.FC = () => {
   const [dashboard, setDashboard] = useState<ComposedDashboardSpec | undefined>(
     undefined
   );
-  const [isLoading, setIsLoading] = useState(false);
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [selectedConnection, setSelectedConnection] = useState<string>("");
@@ -37,33 +39,47 @@ export const DashboardView: React.FC = () => {
   // Clarification dialog state
   const [clarificationOpen, setClarificationOpen] = useState(false);
   const [clarificationQuestion, setClarificationQuestion] = useState("");
+  // Non-streaming loading state (for refine, refresh, filter)
+  const [isNonStreamingLoading, setIsNonStreamingLoading] = useState(false);
 
-  const handleGenerate = async (prompt: string) => {
-    setIsLoading(true);
-    setError(null);
-    try {
-      // Use selected connection
-      const response = await dashboardApi.generate({
-        user_prompt: prompt,
-        connection_name: selectedConnection || "default_connection",
-      });
-
-      if (response.success && response.dashboard) {
-        setDashboard(response.dashboard);
-        setSessionId(response.session_id);
-      } else {
-        setError(response.error || "Failed to generate dashboard");
+  // Streaming generation hook
+  const {
+    generate: streamGenerate,
+    cancel: cancelGeneration,
+    progress,
+    isLoading: isStreaming,
+  } = useStreamingGeneration({
+    onComplete: (result) => {
+      if (result.success && result.dashboard) {
+        setDashboard(result.dashboard as ComposedDashboardSpec);
+        setSessionId(result.session_id);
+        setError(null);
+      } else if (result.error) {
+        setError(result.error);
       }
-    } catch (err: any) {
-      setError(err.message || "An error occurred");
-    } finally {
-      setIsLoading(false);
-    }
-  };
+    },
+    onError: (err) => {
+      setError(err);
+    },
+  });
+
+  // Combined loading state
+  const isLoading = isStreaming || isNonStreamingLoading;
+
+  const handleGenerate = useCallback(async (prompt: string) => {
+    setError(null);
+    setDashboard(undefined);
+
+    await streamGenerate({
+      user_prompt: prompt,
+      connection_name: selectedConnection || "default_connection",
+      max_charts: 6,
+    });
+  }, [streamGenerate, selectedConnection]);
 
   const handleRefresh = async () => {
     if (!sessionId) return;
-    setIsLoading(true);
+    setIsNonStreamingLoading(true);
     try {
       const response = await dashboardApi.refresh({ session_id: sessionId });
       if (response.success && response.dashboard) {
@@ -72,7 +88,7 @@ export const DashboardView: React.FC = () => {
     } catch (err: any) {
       console.error(err);
     } finally {
-      setIsLoading(false);
+      setIsNonStreamingLoading(false);
     }
   };
 
@@ -81,7 +97,7 @@ export const DashboardView: React.FC = () => {
 
     if (!sessionId) return;
 
-    setIsLoading(true);
+    setIsNonStreamingLoading(true);
     try {
       // Use the dedicated filter endpoint for fast filter-only updates
       const response = await dashboardApi.filter({
@@ -97,7 +113,7 @@ export const DashboardView: React.FC = () => {
     } catch (err: any) {
       setError(err.message || "An error occurred");
     } finally {
-      setIsLoading(false);
+      setIsNonStreamingLoading(false);
     }
   };
 
@@ -105,7 +121,7 @@ export const DashboardView: React.FC = () => {
   const handleRefine = async (feedback: string) => {
     if (!sessionId) return;
 
-    setIsLoading(true);
+    setIsNonStreamingLoading(true);
     setError(null);
     try {
       const response = await dashboardApi.refine({
@@ -128,7 +144,7 @@ export const DashboardView: React.FC = () => {
     } catch (err: any) {
       setError(err.message || "An error occurred");
     } finally {
-      setIsLoading(false);
+      setIsNonStreamingLoading(false);
     }
   };
 
@@ -157,7 +173,7 @@ export const DashboardView: React.FC = () => {
         if (!sessionId) return merged;
 
         // Async update to backend
-        setIsLoading(true);
+        setIsNonStreamingLoading(true);
         dashboardApi
           .filter({
             session_id: sessionId,
@@ -174,7 +190,7 @@ export const DashboardView: React.FC = () => {
             setError(err.message || "An error occurred");
           })
           .finally(() => {
-            setIsLoading(false);
+            setIsNonStreamingLoading(false);
           });
 
         return merged;
@@ -186,7 +202,7 @@ export const DashboardView: React.FC = () => {
   const handleChartRefine = async (chartId: string, feedback: string) => {
     if (!sessionId) return;
 
-    setIsLoading(true);
+    setIsNonStreamingLoading(true);
     setError(null);
     try {
       const response = await dashboardApi.refine({
@@ -210,7 +226,7 @@ export const DashboardView: React.FC = () => {
     } catch (err: any) {
       setError(err.message || "An error occurred");
     } finally {
-      setIsLoading(false);
+      setIsNonStreamingLoading(false);
     }
   };
 
@@ -222,7 +238,7 @@ export const DashboardView: React.FC = () => {
       return;
     }
 
-    setIsLoading(true);
+    setIsNonStreamingLoading(true);
     setError(null);
     try {
       const response = await dashboardApi.deleteChart(sessionId, chartId);
@@ -235,12 +251,12 @@ export const DashboardView: React.FC = () => {
     } catch (err: any) {
       setError(err.message || "An error occurred");
     } finally {
-      setIsLoading(false);
+      setIsNonStreamingLoading(false);
     }
   };
 
   const handleLoadSession = async (session_id: string) => {
-    setIsLoading(true);
+    setIsNonStreamingLoading(true);
     setError(null);
     try {
       const session = await sessionsApi.get(session_id);
@@ -256,7 +272,9 @@ export const DashboardView: React.FC = () => {
           sql_queries: session.dashboard_spec.sql_queries || [],
           generated_at:
             session.dashboard_spec.generated_at || new Date().toISOString(),
-        });
+          // Include chart customizations from session for proper rendering
+          chart_customizations: session.chart_customizations || undefined,
+        } as ComposedDashboardSpec);
         setSessionId(session_id);
         setSelectedConnection(session.connection_name || "");
         // Note: If we stored filters in session, we would load them here
@@ -265,7 +283,7 @@ export const DashboardView: React.FC = () => {
     } catch (err: any) {
       setError(err.message || "Failed to load dashboard");
     } finally {
-      setIsLoading(false);
+      setIsNonStreamingLoading(false);
     }
   };
 
@@ -433,6 +451,42 @@ export const DashboardView: React.FC = () => {
           <div className="p-4 text-sm text-destructive bg-destructive/10 rounded-lg max-w-3xl mx-auto animate-in slide-in-from-top-2 border border-destructive/20">
             Error: {error}
           </div>
+        )}
+
+        {/* Progress bar during streaming generation */}
+        {isStreaming && (
+          <Card className="max-w-3xl mx-auto p-6 animate-in fade-in slide-in-from-top-2">
+            <ProgressBar
+              progress={progress.progress}
+              stage={progress.stage}
+              message={progress.message}
+              animated
+            />
+            {progress.details?.charts_planned && (
+              <p className="text-xs text-muted-foreground mt-3">
+                Planning {progress.details.charts_planned} charts...
+              </p>
+            )}
+            {progress.details?.queries_executed && (
+              <p className="text-xs text-muted-foreground mt-3">
+                Executed {progress.details.successful_queries}/{progress.details.queries_executed} queries successfully
+              </p>
+            )}
+            {progress.details?.specs_created && (
+              <p className="text-xs text-muted-foreground mt-3">
+                Created {progress.details.specs_created} visualizations
+              </p>
+            )}
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={cancelGeneration}
+              className="mt-4 gap-1.5 text-muted-foreground hover:text-destructive"
+            >
+              <X className="h-3.5 w-3.5" />
+              Cancel
+            </Button>
+          </Card>
         )}
       </section>
 
