@@ -113,3 +113,6 @@ dist/
 *.tmp
 *.temp
 *._temp.*
+
+# Unignore frontend lib
+!frontend/src/lib/

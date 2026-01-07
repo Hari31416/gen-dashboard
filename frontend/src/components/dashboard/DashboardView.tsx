@@ -19,6 +19,10 @@ import {
 import { History, Plus, Sparkles, RefreshCw } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { FilterPanel } from "./FilterPanel";
+import { ThemeToggle } from "@/components/ui/theme-toggle";
+import { useTheme } from "@/contexts/ThemeContext";
+import { useKeyboardShortcuts, KEYBOARD_SHORTCUTS } from "@/hooks/useKeyboardShortcuts";
+import { KeyboardShortcutsDialog } from "@/components/ui/keyboard-shortcuts-dialog";
 
 export const DashboardView: React.FC = () => {
   const [dashboard, setDashboard] = useState<ComposedDashboardSpec | undefined>(
@@ -147,7 +151,7 @@ export const DashboardView: React.FC = () => {
   const handleChartFilterChange = useCallback(
     (newFilters: Record<string, any>) => {
       // Merge with existing filters
-      setFilterState((prevFilters) => {
+      setFilterState((prevFilters: Record<string, any>) => {
         const merged = { ...prevFilters, ...newFilters };
 
         if (!sessionId) return merged;
@@ -273,6 +277,48 @@ export const DashboardView: React.FC = () => {
     setClarificationOpen(false);
   };
 
+  const { setTheme, resolvedTheme } = useTheme();
+  useKeyboardShortcuts([
+    {
+      ...KEYBOARD_SHORTCUTS.NEW_DASHBOARD,
+      handler: handleNewDashboard,
+    },
+    {
+      ...KEYBOARD_SHORTCUTS.REFRESH,
+      handler: handleRefresh,
+    },
+    {
+      ...KEYBOARD_SHORTCUTS.FOCUS_PROMPT,
+      handler: () => {
+        // Find the textarea and focus it
+        const textarea = document.querySelector('textarea');
+        textarea?.focus();
+      },
+    },
+    {
+      ...KEYBOARD_SHORTCUTS.TOGGLE_THEME,
+      handler: () => setTheme(resolvedTheme === 'dark' ? 'light' : 'dark'),
+    },
+    {
+      ...KEYBOARD_SHORTCUTS.EXPORT_PDF,
+      handler: () => {
+        // Trigger generic PDF export if possible, or leave for button
+        // For now, we'll just log or show a toast if we had one
+        console.log("PDF Export shortcut trigger");
+      },
+    },
+    {
+      ...KEYBOARD_SHORTCUTS.TOGGLE_HISTORY,
+      handler: () => setHistoryOpen((prev: boolean) => !prev),
+    },
+    {
+      ...KEYBOARD_SHORTCUTS.SHOW_SHORTCUTS,
+      handler: () => setShortcutsOpen(true),
+    }
+  ]);
+
+  const [shortcutsOpen, setShortcutsOpen] = useState(false);
+
   return (
     <div className="flex flex-col gap-4 max-w-[95%] w-full mx-auto p-4 min-h-screen">
       <header className="flex items-center justify-between py-4 border-b border-border/40 mb-6 bg-muted/40 px-6 -mx-4 rounded-b-xl shadow-sm">
@@ -317,6 +363,8 @@ export const DashboardView: React.FC = () => {
               />
             </SheetContent>
           </Sheet>
+          <ThemeToggle />
+          <KeyboardShortcutsDialog open={shortcutsOpen} onOpenChange={setShortcutsOpen} />
           <DebugLogin />
         </div>
       </header>

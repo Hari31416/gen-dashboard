@@ -1,3 +1,4 @@
+/// <reference types="vite/client" />
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import embed from 'vega-embed';
 import GridLayout, { type Layout } from 'react-grid-layout';
@@ -10,7 +11,10 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Textarea } from '@/components/ui/textarea';
 import { dashboardApi } from '@/api/client';
-import { Move, Unlock, Save, RotateCcw, Download, Sparkles, Trash2, Code, FileDown } from 'lucide-react';
+import { Move, Unlock, Save, RotateCcw, Download, Sparkles, Trash2, Code, FileText, BarChart3 } from 'lucide-react';
+import { useTheme } from '@/contexts/ThemeContext';
+import { exportDashboardToPDF } from '@/lib/pdf-export';
+import { EmptyState } from '@/components/ui/empty-state';
 
 interface ChartRendererProps {
     dashboard?: ComposedDashboardSpec;
@@ -30,14 +34,17 @@ const DEBUG_MODE = import.meta.env.VITE_DEBUG_MODE === 'true';
  * Individual chart component that renders a single Vega-Lite spec
  * Uses ResizeObserver to re-render chart when container size changes
  */
-const IndividualChart: React.FC<{
+interface IndividualChartProps {
     spec: Record<string, any>;
     chartId: string;
     onFilterChange?: (filters: Record<string, any>) => void;
-}> = ({ spec, chartId: _chartId, onFilterChange }) => {
+}
+
+const IndividualChart = ({ spec, chartId: _chartId, onFilterChange }: IndividualChartProps) => {
     const containerRef = useRef<HTMLDivElement>(null);
     const viewRef = useRef<any>(null);
     const resizeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const { resolvedTheme } = useTheme();
 
     useEffect(() => {
         if (!spec || !containerRef.current) return;
@@ -81,13 +88,20 @@ const IndividualChart: React.FC<{
                 }
             } : {};
 
+            // Configure view config to potentially override background
+            const config = {
+                background: 'transparent', // Ensure chart background is transparent
+                view: { stroke: 'transparent' } // Remove view border if present
+            };
+
             embed(containerRef.current, cleanSpec, {
                 mode: 'vega-lite',
                 actions: { export: true, source: false, compiled: false, editor: false },
-                theme: 'quartz',
-                renderer: 'canvas',
+                theme: resolvedTheme === 'dark' ? 'dark' : 'quartz',
+                renderer: 'svg',
+                config: config,
                 ...loaderOptions,
-            }).then(result => {
+            }).then((result: any) => {
                 viewRef.current = result.view;
 
                 // Add click listener if we have a callback
@@ -186,8 +200,9 @@ export const ChartRenderer: React.FC<ChartRendererProps> = ({
     onRefresh,
     onRefine,
     onDelete
-}) => {
+}: ChartRendererProps) => {
     const containerRef = useRef<HTMLDivElement>(null);
+    const cardRef = useRef<HTMLDivElement>(null);
     const [editMode, setEditMode] = useState(false);
     const [currentLayout, setCurrentLayout] = useState<Layout[]>([]);
     const [originalLayout, setOriginalLayout] = useState<Layout[]>([]);
@@ -197,13 +212,14 @@ export const ChartRenderer: React.FC<ChartRendererProps> = ({
     // Track refine input state locally
     const [refineInputs, setRefineInputs] = useState<Record<string, string>>({});
     const [openPopovers, setOpenPopovers] = useState<Record<string, boolean>>({});
+    const [copiedStates, setCopiedStates] = useState<Record<string, boolean>>({});
 
     const handleRefineSubmit = (chartId: string) => {
         const feedback = refineInputs[chartId];
         if (feedback && onRefine) {
             onRefine(chartId, feedback);
-            setRefineInputs(prev => ({ ...prev, [chartId]: '' }));
-            setOpenPopovers(prev => ({ ...prev, [chartId]: false }));
+            setRefineInputs((prev: Record<string, string>) => ({ ...prev, [chartId]: '' }));
+            setOpenPopovers((prev: Record<string, boolean>) => ({ ...prev, [chartId]: false }));
         }
     };
 
@@ -253,7 +269,7 @@ export const ChartRenderer: React.FC<ChartRendererProps> = ({
 
     // Update static property when editMode changes (without resetting positions)
     useEffect(() => {
-        setCurrentLayout(prev => prev.map(item => ({
+        setCurrentLayout(prev => prev.map((item: Layout) => ({
             ...item,
             static: !editMode,
         })));
@@ -275,7 +291,7 @@ export const ChartRenderer: React.FC<ChartRendererProps> = ({
             const layoutConfig: LayoutConfig = {
                 cols: dashboard.layout_config.cols || 12,
                 row_height: dashboard.layout_config.row_height || 100,
-                layout: currentLayout.map(l => ({
+                layout: currentLayout.map((l: Layout) => ({
                     i: l.i,
                     x: l.x,
                     y: l.y,
@@ -323,8 +339,8 @@ export const ChartRenderer: React.FC<ChartRendererProps> = ({
 
         // Fetch data for each chart and embed inline
         const token = localStorage.getItem('token');
-        const specsWithData = await Promise.all(specs.map(async (spec) => {
-            const chartSpec = { ...spec } as Record<string, any>;
+        const specsWithData = await Promise.all(specs.map(async (spec: Record<string, any>) => {
+            const chartSpec = { ...spec };
 
             // If spec has URL-based data, fetch and embed it
             if (chartSpec.data && typeof chartSpec.data === 'object' && chartSpec.data.url) {
@@ -414,9 +430,9 @@ export const ChartRenderer: React.FC<ChartRendererProps> = ({
             font-size: 12px;
             color: #999;
         }
-        ${specsWithData.map((spec, i) => {
-            const chartId = (spec as Record<string, any>).chart_id || `chart_${i + 1}`;
-            const pos = layoutPositions.find(p => p.i === chartId);
+        ${specsWithData.map((spec: Record<string, any>, i: number) => {
+            const chartId = spec.chart_id || `chart_${i + 1}`;
+            const pos = layoutPositions.find((p: Layout) => p.i === chartId);
             if (pos) {
                 return `.chart-${chartId} {
             grid-column: ${pos.x + 1} / span ${pos.w};
@@ -521,10 +537,12 @@ export const ChartRenderer: React.FC<ChartRendererProps> = ({
     // Empty state
     if (!dashboard) {
         return (
-            <div className="flex flex-col items-center justify-center h-[400px] text-muted-foreground bg-muted/10 rounded-xl border-2 border-dashed border-muted m-4">
-                <p className="font-medium mb-1">No dashboard generated yet</p>
-                <p className="text-sm">Enter a prompt above to start analyzing your data. Or see a dashboard from history.</p>
-            </div>
+            <EmptyState
+                title="No dashboard generated yet"
+                description="Enter a prompt above to start analyzing your data. Or see a dashboard from history."
+                icon={BarChart3}
+                className="h-[400px] border-2 border-dashed border-muted m-4 bg-muted/5 rounded-xl"
+            />
         );
     }
 
@@ -543,7 +561,7 @@ export const ChartRenderer: React.FC<ChartRendererProps> = ({
     const cols = layout_config?.cols || 12;
 
     return (
-        <Card className="w-full shadow-lg border-muted/40">
+        <Card className="w-full shadow-lg border-muted/40" ref={cardRef}>
             <CardHeader className="bg-muted/5 border-b border-muted/20">
                 <div className="flex items-center justify-between">
                     <div>
@@ -599,19 +617,58 @@ export const ChartRenderer: React.FC<ChartRendererProps> = ({
                                     <Button
                                         variant="outline"
                                         size="sm"
-                                    onClick={handleExportHTML}
-                                    className="gap-2"
-                                >
-                                    <Download className="h-4 w-4" /> Export HTML
-                                </Button>
-                                <Button
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={() => setEditMode(true)}
-                                    className="gap-2"
-                                >
-                                    <Move className="h-4 w-4" /> Edit Layout
-                                </Button>
+                                        onClick={handleExportHTML}
+                                        className="gap-2"
+                                    >
+                                        <Code className="h-4 w-4" /> Export HTML
+                                    </Button>
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => {
+                                            if (cardRef.current && dashboard && individual_specs) {
+                                                // Prepare chart data for Vega-based PDF export
+                                                const charts = individual_specs.map((spec: Record<string, any>, index: number) => {
+                                                    const chartId = spec.chart_id || `chart_${index + 1}`;
+                                                    const layoutItem = currentLayout.find((l: Layout) => l.i === chartId);
+                                                    return {
+                                                        spec,
+                                                        chartId,
+                                                        title: spec.title as string | undefined,
+                                                        layout: layoutItem ? {
+                                                            x: layoutItem.x,
+                                                            y: layoutItem.y,
+                                                            w: layoutItem.w,
+                                                            h: layoutItem.h,
+                                                        } : { x: 0, y: index * 3, w: 6, h: 3 },
+                                                    };
+                                                });
+
+                                                exportDashboardToPDF(cardRef.current, {
+                                                    title: dashboard.title,
+                                                    description: dashboard.description,
+                                                    filename: dashboard.title
+                                                }, {
+                                                    title: dashboard.title,
+                                                    description: dashboard.description,
+                                                    charts,
+                                                    gridCols: cols,
+                                                    rowHeight,
+                                                });
+                                            }
+                                        }}
+                                        className="gap-2"
+                                    >
+                                        <FileText className="h-4 w-4" /> Export PDF
+                                    </Button>
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => setEditMode(true)}
+                                        className="gap-2"
+                                    >
+                                        <Move className="h-4 w-4" /> Edit Layout
+                                    </Button>
                             </>
                         )}
                     </div>
@@ -638,8 +695,18 @@ export const ChartRenderer: React.FC<ChartRendererProps> = ({
                         preventCollision={false}
                         margin={[12, 12]}
                     >
-                        {individual_specs!.map((spec, index) => {
+                        {individual_specs!.map((spec: Record<string, any>, index: number) => {
                             const chartId = spec.chart_id || `chart_${index + 1}`;
+
+                            // Find SQL for this chart
+                            let chartSql = '';
+                            if (dashboard?.sql_queries) {
+                                const sqlEntry = dashboard.sql_queries.find(q => q[chartId]);
+                                if (sqlEntry) {
+                                    chartSql = sqlEntry[chartId];
+                                }
+                            }
+
                             return (
                                 <div
                                     key={chartId}
@@ -715,6 +782,89 @@ export const ChartRenderer: React.FC<ChartRendererProps> = ({
                                                     </Button>
                                                 )}
 
+                                                {!editMode && chartSql && (
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="icon"
+                                                        className="h-6 w-6 text-muted-foreground hover:text-primary"
+                                                        title={copiedStates[chartId] ? "Copied!" : "Copy SQL"}
+                                                        onClick={async () => {
+                                                            try {
+                                                                await navigator.clipboard.writeText(chartSql);
+                                                                setCopiedStates(prev => ({ ...prev, [chartId]: true }));
+                                                                setTimeout(() => {
+                                                                    setCopiedStates(prev => ({ ...prev, [chartId]: false }));
+                                                                }, 2000);
+                                                            } catch (err) {
+                                                                console.error('Failed to copy SQL:', err);
+                                                            }
+                                                        }}
+                                                    >
+                                                        {copiedStates[chartId] ? (
+                                                            <Sparkles className="h-3.5 w-3.5 text-green-500" />
+                                                        ) : (
+                                                            <Code className="h-3.5 w-3.5" />
+                                                        )}
+                                                    </Button>
+                                                )}
+
+                                                {!editMode && (
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="icon"
+                                                        className="h-6 w-6 text-muted-foreground hover:text-primary"
+                                                        title="Download CSV"
+                                                        onClick={async () => {
+                                                            try {
+                                                                // Fetch data
+                                                                let data: any[] = [];
+                                                                const chartSpec = { ...spec } as Record<string, any>;
+
+                                                                if (chartSpec.data?.values) {
+                                                                    data = chartSpec.data.values;
+                                                                } else if (chartSpec.data?.url) {
+                                                                    const token = localStorage.getItem('token');
+                                                                    const response = await fetch(chartSpec.data.url, {
+                                                                        headers: token ? { 'Authorization': `Bearer ${token}` } : {}
+                                                                    });
+                                                                    if (response.ok) {
+                                                                        data = await response.json();
+                                                                    }
+                                                                }
+
+                                                                if (!data || data.length === 0) {
+                                                                    alert('No data available to download');
+                                                                    return;
+                                                                }
+
+                                                                // Convert to CSV
+                                                                const headers = Object.keys(data[0]);
+                                                                const csvContent = [
+                                                                    headers.join(','),
+                                                                    ...data.map(row => headers.map(header => {
+                                                                        const cell = row[header] === null || row[header] === undefined ? '' : row[header];
+                                                                        return JSON.stringify(cell);
+                                                                    }).join(','))
+                                                                ].join('\\n');
+
+                                                                const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+                                                                const url = URL.createObjectURL(blob);
+                                                                const link = document.createElement('a');
+                                                                link.href = url;
+                                                                link.download = `${spec.title?.replace(/[^a-z0-9]/gi, '_') || chartId}.csv`;
+                                                                document.body.appendChild(link);
+                                                                link.click();
+                                                                document.body.removeChild(link);
+                                                                URL.revokeObjectURL(url);
+                                                            } catch (err) {
+                                                                console.error('Failed to download CSV:', err);
+                                                            }
+                                                        }}
+                                                    >
+                                                        <FileText className="h-3.5 w-3.5" />
+                                                    </Button>
+                                                )}
+
                                                 {!editMode && DEBUG_MODE && (
                                                     <Button
                                                         variant="ghost"
@@ -783,7 +933,7 @@ export const ChartRenderer: React.FC<ChartRendererProps> = ({
                                                             URL.revokeObjectURL(url);
                                                         }}
                                                     >
-                                                        <FileDown className="h-3.5 w-3.5" />
+                                                        <Download className="h-3.5 w-3.5" />
                                                     </Button>
                                                 )}
                                             </div>

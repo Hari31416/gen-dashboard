@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { History, Trash2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { EmptyState } from '@/components/ui/empty-state';
 
 interface SavedSession {
     session_id: string;
@@ -76,10 +77,12 @@ export function SavedDashboards({ onSelect, className }: SavedDashboardsProps) {
 
     if (sessions.length === 0) {
         return (
-            <div className="text-center text-muted-foreground py-8">
-                <History className="h-8 w-8 mx-auto mb-2 opacity-50" />
-                <p>No saved dashboards yet.</p>
-            </div>
+            <EmptyState
+                title="No saved dashboards"
+                description="Your dashboard history will appear here once you generate some dashboards."
+                icon={History}
+                className="py-8"
+            />
         );
     }
 
