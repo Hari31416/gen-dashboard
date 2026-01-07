@@ -7,7 +7,7 @@ for testing the new dashboard generation functionality.
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
+
 from dotenv import load_dotenv
 
 from env import *
@@ -29,8 +29,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Mount static files for GeoJSON
-app.mount("/static/geojsons", StaticFiles(directory="geojsons"), name="geojsons")
 
 # Core routes
 app.include_router(auth)
