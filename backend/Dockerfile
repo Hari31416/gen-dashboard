@@ -12,12 +12,14 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     && rm -rf /var/lib/apt/lists/*
 
+# Install uv
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
+
 # Copy dependency definitions
 COPY pyproject.toml uv.lock ./
 
 # Install uv and dependencies
-RUN pip install uv && \
-    uv sync --frozen --no-cache
+RUN uv sync --frozen --no-cache
 
 # Clean up uv cache to reduce image size
 RUN rm -rf /root/.cache/uv
