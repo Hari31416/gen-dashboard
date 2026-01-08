@@ -15,6 +15,7 @@ from env import MONGO_URI
 from pydantic import BaseModel, Field
 from pymongo import MongoClient
 from pymongo.collection import Collection
+from services.database.connection_pool import mongo_pool
 from services.database.db_connection_service import decrypt_password, encrypt_password
 from utilities import create_simple_logger
 
@@ -30,13 +31,9 @@ def get_db_name(user_name: str) -> str:
 def get_mongo_client() -> MongoClient:
     """Get MongoDB client connection."""
     try:
-        client = MongoClient(
-            MONGO_URI, authSource="admin", serverSelectionTimeoutMS=5000
-        )
-        client.admin.command("ping")
-        return client
+        return mongo_pool.get_client(MONGO_URI)
     except Exception as e:
-        logger.error(f"Failed to connect to MongoDB: {e}")
+        logger.error(f"Failed to get MongoDB client: {e}")
         raise
 
 

@@ -18,9 +18,12 @@ from utilities import create_simple_logger
 logger = create_simple_logger(__name__)
 
 
+from services.database.connection_pool import mongo_pool
+
+
 def get_mongo_client() -> MongoClient:
     """Get MongoDB client connection."""
-    return MongoClient(MONGO_URI)
+    return mongo_pool.get_client(MONGO_URI)
 
 
 def get_dashboard_sessions_collection(username: str) -> Collection:

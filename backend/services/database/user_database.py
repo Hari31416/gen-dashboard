@@ -7,8 +7,9 @@ from datetime import datetime, timedelta
 from typing import Any, Dict, Optional
 
 from env import MONGO_URI
-from pymongo import ASCENDING, MongoClient
+from pymongo import ASCENDING
 from pymongo.errors import DuplicateKeyError
+from services.database.connection_pool import mongo_pool
 from utilities import create_simple_logger
 
 logger = create_simple_logger(__name__)
@@ -32,12 +33,10 @@ DEFAULT_TOKEN_LIMIT_MILLIONS = 10  # 10 million tokens
 UNLIMITED_TOKEN_LIMIT = -1  # Use -1 to indicate unlimited tokens
 
 
-def get_auth_db_connection(mongo_uri: str = MONGO_URI):
+def get_auth_db_connection():
     """Get MongoDB connection for authentication database"""
     try:
-        client = MongoClient(
-            mongo_uri, authSource="admin", serverSelectionTimeoutMS=2000
-        )
+        client = mongo_pool.get_client(MONGO_URI)
         db = client[AUTH_DB_NAME]
 
         # Test connection
@@ -149,7 +148,7 @@ def create_user_in_db(
         }
 
         # Insert user (unique index on username will prevent duplicates)
-        result = db[USERS_COLLECTION].insert_one(user_doc)
+        _ = db[USERS_COLLECTION].insert_one(user_doc)
         logger.info(
             f"User '{username}' created successfully with role '{role}', expiry {expires_at.strftime('%Y-%m-%d')}, token limit {token_limit}M"
         )

@@ -4,7 +4,7 @@ from typing import Tuple
 import gridfs
 import pandas as pd
 from env import DEFAULT_USERNAME, MONGO_URI
-from pymongo import MongoClient
+from services.database.connection_pool import mongo_pool
 from utilities import create_simple_logger, get_dataframe_summary
 
 logger = create_simple_logger(__name__)
@@ -13,7 +13,7 @@ logger = create_simple_logger(__name__)
 def get_mongo_connection(
     mongo_uri: str = MONGO_URI, user_name: str = DEFAULT_USERNAME
 ) -> Tuple:
-    client = MongoClient(mongo_uri, authSource="admin", serverSelectionTimeoutMS=2000)
+    client = mongo_pool.get_client(mongo_uri)
     db = client[user_name]
     fs = gridfs.GridFS(db)
     try:

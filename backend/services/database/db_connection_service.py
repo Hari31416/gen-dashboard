@@ -7,11 +7,11 @@ This module handles:
 - Password encryption/decryption for secure storage
 """
 
-import os
 from typing import Any, Dict, List, Optional
 
 from cryptography.fernet import Fernet
-from sqlalchemy import create_engine, inspect, text
+from services.database.connection_pool import engine_pool
+from sqlalchemy import inspect, text
 from sqlalchemy.exc import SQLAlchemyError
 from utilities import create_simple_logger, get_or_generate_key
 
@@ -134,7 +134,7 @@ def validate_connection(
         connection_string = build_connection_string(
             host, port, username, password, database_name, db_type
         )
-        engine = create_engine(connection_string, pool_pre_ping=True)
+        engine = engine_pool.get_engine(connection_string)
 
         # Test connection
         with engine.connect() as connection:
@@ -191,7 +191,7 @@ def fetch_table_schemas(
         connection_string = build_connection_string(
             host, port, username, password, database_name, db_type
         )
-        engine = create_engine(connection_string, pool_pre_ping=True)
+        engine = engine_pool.get_engine(connection_string)
         inspector = inspect(engine)
 
         tables = []
@@ -268,7 +268,7 @@ def fetch_table_relationships(
         connection_string = build_connection_string(
             host, port, username, password, database_name, db_type
         )
-        engine = create_engine(connection_string, pool_pre_ping=True)
+        engine = engine_pool.get_engine(connection_string)
         inspector = inspect(engine)
 
         relationships = []
@@ -334,7 +334,7 @@ def test_query_execution(
         connection_string = build_connection_string(
             host, port, username, password, database_name, db_type
         )
-        engine = create_engine(connection_string, pool_pre_ping=True)
+        engine = engine_pool.get_engine(connection_string)
 
         with engine.connect() as connection:
             result = connection.execute(text(query))
@@ -371,7 +371,7 @@ def run_query_and_return_df(
     import pandas as pd
 
     try:
-        engine = create_engine(connection_string, pool_pre_ping=True)
+        engine = engine_pool.get_engine(connection_string)
 
         # Use raw DBAPI connection to avoid SQLAlchemy's % character handling
         # This is necessary for MySQL DATE_FORMAT which uses %Y, %m, etc.
@@ -409,7 +409,7 @@ def dry_run_sql_query(
         Dictionary with dry run result
     """
     try:
-        engine = create_engine(connection_string, pool_pre_ping=True)
+        engine = engine_pool.get_engine(connection_string)
 
         with engine.connect() as connection:
             connection.execute(text(f"EXPLAIN {query}"))
