@@ -2,7 +2,7 @@
 
 A powerful, agentic AI-powered dashboard generator that converts natural language requests into fully functional, interactive, and aesthetically pleasing data dashboards.
 
-## 🚀 Overview
+## Overview
 
 The **AI Dashboard** leverages a sophisticated **multi-agent pipeline** to automate the end-to-end process of data visualization. It translates user queries (e.g., "Show me sales trends for Q3 compared to last year") into SQL queries, executes them securely, generates Vega-Lite visualization specifications, and intelligently composes them into a responsive layout.
 
@@ -15,7 +15,7 @@ The **AI Dashboard** leverages a sophisticated **multi-agent pipeline** to autom
 - **Secure SQL Execution**: Built-in sanitization and validation to prevent unsafe database operations.
 - **Modern UI**: A responsive, "dark mode" aesthetic built with React and Tailwind CSS.
 
-## 🏗️ Architecture
+## Architecture
 
 The system is built on a robust modern stack:
 
@@ -34,16 +34,16 @@ The system is built on a robust modern stack:
 - **Tailwind CSS**: Utility-first styling framework.
 - **Vega-Embed**: Embedding Vega-Lite visualizations.
 
-## 🛠️ Prerequisites
+## Prerequisites
 
 Before you begin, ensure you have the following installed:
 
-- **Python 3.11+**
-- **Node.js 18+** & **npm**
+- **Python 3.13+**
+- **Node.js 18+** & **pnpm**
 - **Docker** (for running the database container, i.e., MongoDB)
-- **uv** (fast Python package installer & resolver) - Optional but recommended.
+- **uv** (Required for backend dependency management)
 
-## 🚦 Getting Started
+## Getting Started
 
 ### 1. Clone the Repository
 
@@ -73,7 +73,7 @@ make setup
 
 This command will:
 
-- Create a Python virtual environment and install backend requirements.
+- Create a Python virtual environment and install backend requirements using `uv sync`.
 - Install frontend Node.js packages.
 
 ### 4. Start the Application
@@ -96,7 +96,7 @@ make start
    - **Click** on a bar or point to filter the rest of the dashboard.
    - **Chat** to refine: "Switch the trend chart to a line chart."
 
-## 📦 Project Structure
+## Project Structure
 
 ```txt
 ai-dashboard/
@@ -108,7 +108,7 @@ ai-dashboard/
 └── REAMDE.md           # Project documentation
 ```
 
-## 🔧 Useful Commands
+## Useful Commands
 
 | Command      | Description                                   |
 | :----------- | :-------------------------------------------- |
@@ -117,6 +117,6 @@ ai-dashboard/
 | `make stop`  | Stop both servers                             |
 | `make up`    | Start Docker containers (DB)                  |
 
-## 🤝 Contributing
+## Contributing
 
 Contributions are welcome! Please fork the repository and submit a pull request for any enhancements or bug fixes.

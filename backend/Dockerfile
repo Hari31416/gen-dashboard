@@ -10,39 +10,26 @@ WORKDIR /app
 # Install system dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
-    libglib2.0-0 \
-    libgl1 \
-    libsm6 \
-    libxext6 \
-    libxrender1 \
-    libnss3 \
-    libatk-bridge2.0-0 \
-    libcups2 \
-    libxcomposite1 \
-    libxdamage1 \
-    libxfixes3 \
-    libxrandr2 \
-    libgbm1 \
-    libxkbcommon0 \
-    libpango-1.0-0 \
-    libcairo2 \
-    libasound2 \
-    librsvg2-bin \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy dependency list
-COPY requirements_prod.txt .
+# Copy dependency definitions
+COPY pyproject.toml uv.lock ./
 
-# Install Python dependencies
-RUN pip install --no-cache-dir -r requirements_prod.txt
+# Install uv and dependencies
+RUN pip install uv && \
+    uv sync --frozen --no-cache
+
+# Clean up uv cache to reduce image size
+RUN rm -rf /root/.cache/uv
+
+# Add venv to path
+ENV PATH="/app/.venv/bin:$PATH"
 
 # Copy app code
 COPY . .
 
 # Make startup scripts executable
-RUN chmod +x startup_checks.sh docker-entrypoint.sh
-
 EXPOSE 8016
 
-# Use the entrypoint script to run startup checks and start the app
-CMD ["./docker-entrypoint.sh"]
+# Use uv run to start the app
+CMD ["uv", "run", "uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8016", "--loop", "asyncio"]

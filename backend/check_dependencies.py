@@ -8,9 +8,7 @@ import os
 import sys
 from typing import Tuple
 from pymongo import MongoClient
-from sqlalchemy import create_engine, text
 from utilities.utils import create_simple_logger
-from env import MARIADB_URI
 
 logger = create_simple_logger(__name__)
 
@@ -41,7 +39,7 @@ def check_mongodb_connection() -> Tuple[bool, str]:
         client.admin.command("ping")
 
         # Check if database exists
-        db = client[mongo_db]
+        _ = client[mongo_db]
 
         message = f"MongoDB connection is alive at {mongo_uri} (database: {mongo_db})"
         logger.info(message)
@@ -50,31 +48,6 @@ def check_mongodb_connection() -> Tuple[bool, str]:
 
     except Exception as e:
         message = f"MongoDB connection failed. Tried to connect with: {connection_info}. Error: {str(e)}"
-        logger.error(message)
-        return False, message
-
-
-def check_mariadb_connection() -> Tuple[bool, str]:
-    """
-    Check MariaDB connection status.
-
-    Returns:
-        Tuple[bool, str]: (is_alive, message)
-    """
-    try:
-        # Use URI from env
-        uri = MARIADB_URI
-
-        # Create engine and test connection
-        engine = create_engine(uri)
-        with engine.connect() as connection:
-            connection.execute(text("SELECT 1"))
-
-        message = f"MariaDB connection is alive at {uri}"
-        logger.info(message)
-        return True, message
-    except Exception as e:
-        message = f"MariaDB connection failed. URI: {MARIADB_URI}. Error: {str(e)}"
         logger.error(message)
         return False, message
 
@@ -92,10 +65,6 @@ def main() -> int:
     raise_if_mongodb_not_alive = (
         os.environ.get("RAISE_IF_MONGODB_NOT_ALIVE", "True").lower() == "true"
     )
-    raise_if_mariadb_not_alive = (
-        os.environ.get("RAISE_IF_MARIADB_NOT_ALIVE", "True").lower() == "true"
-    )
-
     # Check all services
     services_status = {}
 
@@ -105,14 +74,6 @@ def main() -> int:
         "alive": mongodb_alive,
         "message": mongodb_message,
         "required": raise_if_mongodb_not_alive,
-    }
-
-    # Check MariaDB
-    mariadb_alive, mariadb_message = check_mariadb_connection()
-    services_status["MariaDB"] = {
-        "alive": mariadb_alive,
-        "message": mariadb_message,
-        "required": raise_if_mariadb_not_alive,
     }
 
     # Generate summary
