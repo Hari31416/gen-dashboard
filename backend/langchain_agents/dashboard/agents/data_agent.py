@@ -9,21 +9,20 @@ Output: List[ChartDataResult] with raw data and SQL queries
 """
 
 import json
-import time
 import re
-from typing import Dict, Any, List
+import time
+from typing import Any, Dict, List
 
-from langchain_core.messages import SystemMessage, HumanMessage
-
-from langchain_agents.llm_utils import get_llm
 from langchain_agents.dashboard.state import DashboardGraphState
+from langchain_agents.llm_utils import get_llm
 from langchain_agents.tools.database_tools import check_for_sql_safety
+from langchain_core.messages import HumanMessage, SystemMessage
+from prompts import prompt_map
 from services.database.db_config_models import get_db_config
 from services.database.db_connection_service import (
     build_connection_string,
     run_query_and_return_df,
 )
-from prompts import prompt_map
 from utilities import create_simple_logger
 
 logger = create_simple_logger(__name__)

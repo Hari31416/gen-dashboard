@@ -11,18 +11,17 @@ Agents:
 """
 
 from langchain_agents.dashboard.models import (
-    ChartGoal,
-    ChartType,
     AggregationType,
     ChartDataResult,
-    SingleVizSpec,
+    ChartGoal,
+    ChartType,
     ComposedDashboardSpec,
     DashboardGenerateRequest,
     DashboardRefineRequest,
     DashboardRefreshRequest,
     DashboardResponse,
+    SingleVizSpec,
 )
-
 from langchain_agents.dashboard.state import (
     DashboardGraphState,
     create_initial_dashboard_state,

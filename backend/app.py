@@ -5,19 +5,18 @@ This is a simplified app that only includes the dashboard routes
 for testing the new dashboard generation functionality.
 """
 
-from contextlib import asynccontextmanager
-from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
 import sys
+from contextlib import asynccontextmanager
 
-from dotenv import load_dotenv
-
-from utilities import create_simple_logger
-from routes.auth import router as auth
-from routes.database import router as database_router
-from routes.dashboard import router as dashboard_router
 import check_dependencies
 import setup_admin_user
+from dotenv import load_dotenv
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+from routes.auth import router as auth
+from routes.dashboard import router as dashboard_router
+from routes.database import router as database_router
+from utilities import create_simple_logger
 
 load_dotenv()
 logger = create_simple_logger(__name__)

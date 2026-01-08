@@ -1,14 +1,15 @@
 import os
 from datetime import datetime, timedelta
-from typing import Optional, Dict, Any
+from typing import Any, Dict, Optional
+
 from jose import JWTError, jwt
 from passlib.context import CryptContext
 from services.database.user_database import (
-    get_user_from_db,
-    create_user_in_db,
-    user_exists,
-    is_user_expired,
     ROLE_USER,
+    create_user_in_db,
+    get_user_from_db,
+    is_user_expired,
+    user_exists,
 )
 
 # Configuration

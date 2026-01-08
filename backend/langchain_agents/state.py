@@ -7,7 +7,7 @@ This module defines all the TypedDict state schemas used across the graphs:
 - AnalyzerGraphState: Analyzer subgraph state
 """
 
-from typing import TypedDict, Optional, List, Dict, Any, Annotated, Literal
+from typing import Annotated, Any, Dict, List, Literal, Optional, TypedDict
 
 
 def merge_dicts(left: Dict[str, Any], right: Dict[str, Any]) -> Dict[str, Any]:

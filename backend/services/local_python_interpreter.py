@@ -7,15 +7,13 @@ import logging
 import math
 import re
 from abc import ABC, abstractmethod
-from typing import IO, List, Optional, Union
 from collections.abc import Callable, Generator, Mapping
 from dataclasses import dataclass
 from functools import wraps
 from importlib import import_module
 from importlib.util import find_spec
 from types import BuiltinFunctionType, FunctionType, ModuleType
-from typing import Any
-
+from typing import IO, Any, List, Optional, Union
 
 logger = logging.getLogger(__name__)
 

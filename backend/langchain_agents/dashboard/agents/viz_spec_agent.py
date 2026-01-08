@@ -10,13 +10,12 @@ Output: SingleVizSpec (Vega-Lite JSON)
 
 import json
 import time
-from typing import Dict, Any, List
+from typing import Any, Dict, List
 
-from langchain_core.messages import SystemMessage, HumanMessage
-
-from langchain_agents.llm_utils import get_llm
-from langchain_agents.dashboard.state import DashboardGraphState
 from langchain_agents.dashboard.models import SingleVizSpec
+from langchain_agents.dashboard.state import DashboardGraphState
+from langchain_agents.llm_utils import get_llm
+from langchain_core.messages import HumanMessage, SystemMessage
 from prompts import prompt_map
 from utilities import create_simple_logger
 
@@ -411,8 +410,8 @@ def _transform_to_geoshape_spec(
     The LLM generates the encoding but not the GeoJSON URL/transform structure.
     This function adds the necessary data source and lookup transform.
     """
-    from services.geojson_service import get_geojson_config
     from env import BACKEND_URL
+    from services.geojson_service import get_geojson_config
 
     goal = goal or {}
 

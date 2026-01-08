@@ -6,30 +6,31 @@ All endpoints require authentication.
 """
 
 from typing import List, Optional
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
-from routes.auth import get_current_active_user, User
-from services.database.db_connection_service import (
-    validate_connection,
-    fetch_table_schemas,
-    fetch_table_relationships,
-    test_query_execution,
-)
+from routes.auth import User, get_current_active_user
 from services.database.db_config_models import (
-    save_db_config,
-    get_db_config,
-    list_db_configs,
     delete_db_config,
-    save_db_info,
-    get_db_info,
-    list_db_infos,
-    save_db_relationships,
-    get_db_relationships,
-    save_db_relationships_updates,
-    get_db_relationships_updates,
-    list_db_relationships_updates,
     delete_db_relationships_updates,
+    get_db_config,
+    get_db_info,
+    get_db_relationships,
+    get_db_relationships_updates,
     get_effective_relationships,
+    list_db_configs,
+    list_db_infos,
+    list_db_relationships_updates,
+    save_db_config,
+    save_db_info,
+    save_db_relationships,
+    save_db_relationships_updates,
+)
+from services.database.db_connection_service import (
+    fetch_table_relationships,
+    fetch_table_schemas,
+    test_query_execution,
+    validate_connection,
 )
 from utilities import create_simple_logger
 

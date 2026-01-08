@@ -3,11 +3,12 @@ Automated admin user setup script for Gen-BI backend.
 Creates default admin user if none exists, using environment variables.
 """
 
-from dotenv import load_dotenv
 import os
 import sys
-from utilities.auth import create_user
+
+from dotenv import load_dotenv
 from services.database.user_database import ROLE_ADMIN, list_all_users
+from utilities.auth import create_user
 from utilities.utils import create_simple_logger
 
 logger = create_simple_logger(__name__)

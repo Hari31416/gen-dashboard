@@ -10,15 +10,12 @@ Output: ComposedDashboardSpec with individual_specs and layout_config
 
 import json
 import time
-from typing import Dict, Any, List
+from typing import Any, Dict, List
 
-from langchain_core.messages import SystemMessage, HumanMessage
-
-from langchain_agents.llm_utils import get_llm
+from langchain_agents.dashboard.models import LayoutType
 from langchain_agents.dashboard.state import DashboardGraphState
-from langchain_agents.dashboard.models import (
-    LayoutType,
-)
+from langchain_agents.llm_utils import get_llm
+from langchain_core.messages import HumanMessage, SystemMessage
 from prompts import prompt_map
 from utilities import create_simple_logger
 

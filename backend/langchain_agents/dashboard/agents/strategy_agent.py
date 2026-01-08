@@ -10,28 +10,27 @@ Output: List[ChartGoal] with chart objectives
 
 import json
 import time
-from typing import Dict, Any, List
+from typing import Any, Dict, List
 
-from langchain_core.messages import SystemMessage, HumanMessage
-
-from langchain_agents.llm_utils import get_llm
-from langchain_agents.dashboard.state import DashboardGraphState
+from langchain_agents.agents.react_tts_agent import (
+    convert_relationships,
+    convert_tables_info,
+)
 from langchain_agents.dashboard.models import (
+    AggregationType,
     ChartGoal,
     ChartType,
-    AggregationType,
     StrategyAgentOutput,
 )
-from langchain_agents.agents.react_tts_agent import (
-    convert_tables_info,
-    convert_relationships,
-)
+from langchain_agents.dashboard.state import DashboardGraphState
+from langchain_agents.llm_utils import get_llm
+from langchain_core.messages import HumanMessage, SystemMessage
+from prompts import prompt_map
 from services.database.db_config_models import (
     get_db_config,
     get_db_info,
     get_db_relationships,
 )
-from prompts import prompt_map
 from utilities import create_simple_logger
 
 logger = create_simple_logger(__name__)

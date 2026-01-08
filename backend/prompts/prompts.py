@@ -1,5 +1,6 @@
-from utilities import create_simple_logger
 import os
+
+from utilities import create_simple_logger
 
 logger = create_simple_logger(__name__)
 FILE_DIR = os.path.dirname(os.path.abspath(__file__))

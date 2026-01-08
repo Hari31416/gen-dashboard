@@ -1,11 +1,11 @@
-from utilities import create_simple_logger, get_dataframe_summary
-from env import MONGO_URI, DEFAULT_USERNAME
-from typing import Tuple
-from pymongo import MongoClient
-
 import io
+from typing import Tuple
+
 import gridfs
 import pandas as pd
+from env import DEFAULT_USERNAME, MONGO_URI
+from pymongo import MongoClient
+from utilities import create_simple_logger, get_dataframe_summary
 
 logger = create_simple_logger(__name__)
 

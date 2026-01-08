@@ -1,12 +1,12 @@
+import json
+
+import requests
 from env import (
     BHASHINI_API_KEY,
     BHASHINI_ENDPOINT_URL,
     BHASHINI_LANG_DETECTION_SERVICE_ID,
 )
 from utilities import create_simple_logger
-
-import requests
-import json
 
 logger = create_simple_logger(__name__)
 

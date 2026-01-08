@@ -3,8 +3,8 @@ Server-Sent Events (SSE) utilities for streaming responses.
 """
 
 import json
-from typing import Any
 from decimal import Decimal
+from typing import Any
 
 
 class DecimalEncoder(json.JSONEncoder):

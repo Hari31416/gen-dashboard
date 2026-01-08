@@ -5,12 +5,13 @@ This module defines TypedDict state schemas used by the dashboard generation gra
 - DashboardGraphState: Main pipeline state
 """
 
-from typing import TypedDict, Optional, List, Dict, Any
+from typing import Any, Dict, List, Optional, TypedDict
+
 from langchain_agents.dashboard.models import (
-    ChartGoal,
     ChartDataResult,
-    SingleVizSpec,
+    ChartGoal,
     ComposedDashboardSpec,
+    SingleVizSpec,
 )
 
 

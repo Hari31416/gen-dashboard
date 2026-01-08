@@ -11,16 +11,15 @@ Output: RefinementIntent with classified actions
 import json
 import re
 import time
-from typing import Dict, Any, List, Optional
+from typing import Any, Dict, List, Optional
 
-from langchain_core.messages import SystemMessage, HumanMessage
-
-from langchain_agents.llm_utils import get_llm
 from langchain_agents.dashboard.models import (
-    RefinementActionType,
     RefinementAction,
+    RefinementActionType,
     RefinementIntent,
 )
+from langchain_agents.llm_utils import get_llm
+from langchain_core.messages import HumanMessage, SystemMessage
 from utilities import create_simple_logger
 
 logger = create_simple_logger(__name__)

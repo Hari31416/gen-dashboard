@@ -7,10 +7,11 @@ This module provides utilities for encryption key management:
 - Load keys from files
 """
 
-from cryptography.fernet import Fernet
 import os
 from pathlib import Path
 from typing import Optional
+
+from cryptography.fernet import Fernet
 
 
 def generate_encryption_key() -> str:

@@ -1,30 +1,30 @@
-from datetime import timedelta, datetime
-from typing import Optional, List
+from datetime import datetime, timedelta
+from typing import List, Optional
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from pydantic import BaseModel
-
-from utilities.auth import (
-    authenticate_user,
-    create_access_token,
-    decode_token,
-    get_user,
-    create_user,
-    ACCESS_TOKEN_EXPIRE_MINUTES,
-)
 from services.database.user_database import (
-    is_admin,
-    list_all_users,
+    ROLE_ADMIN,
+    ROLE_USER,
+    delete_user_from_db,
     extend_user_expiry,
+    is_admin,
+    is_user_expired,
+    list_all_users,
     set_user_expiry,
     set_user_role,
     set_user_token_limit,
-    delete_user_from_db,
-    is_user_expired,
-    ROLE_ADMIN,
-    ROLE_USER,
 )
 from utilities import create_simple_logger
+from utilities.auth import (
+    ACCESS_TOKEN_EXPIRE_MINUTES,
+    authenticate_user,
+    create_access_token,
+    create_user,
+    decode_token,
+    get_user,
+)
 
 logger = create_simple_logger(__name__)
 

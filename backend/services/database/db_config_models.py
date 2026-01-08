@@ -7,15 +7,16 @@ This module manages MongoDB collections for:
 - <username>_db_relationships: Table relationships
 """
 
-from typing import Dict, List, Optional, Any
-from pydantic import BaseModel, Field
+import re
 from datetime import datetime
+from typing import Any, Dict, List, Optional
+
+from env import MONGO_URI
+from pydantic import BaseModel, Field
 from pymongo import MongoClient
 from pymongo.collection import Collection
-from env import MONGO_URI
+from services.database.db_connection_service import decrypt_password, encrypt_password
 from utilities import create_simple_logger
-from services.database.db_connection_service import encrypt_password, decrypt_password
-import re
 
 logger = create_simple_logger(__name__)
 

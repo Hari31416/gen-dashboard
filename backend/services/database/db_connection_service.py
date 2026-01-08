@@ -7,11 +7,12 @@ This module handles:
 - Password encryption/decryption for secure storage
 """
 
-from typing import Dict, List, Any, Optional
+import os
+from typing import Any, Dict, List, Optional
+
+from cryptography.fernet import Fernet
 from sqlalchemy import create_engine, inspect, text
 from sqlalchemy.exc import SQLAlchemyError
-from cryptography.fernet import Fernet
-import os
 from utilities import create_simple_logger, get_or_generate_key
 
 logger = create_simple_logger(__name__)

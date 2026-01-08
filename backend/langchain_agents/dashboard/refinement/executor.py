@@ -8,20 +8,20 @@ parallel execution using asyncio.gather where possible.
 import asyncio
 import copy
 import time
-from typing import Dict, Any, List
+from typing import Any, Dict, List
 
-from langchain_agents.dashboard.models import RefinementActionType, RefinementAction
+from langchain_agents.dashboard.models import RefinementAction, RefinementActionType
 from langchain_agents.dashboard.refinement.handlers import (
-    handle_rerun_sql,
-    handle_modify_sql,
+    handle_add_chart,
     handle_change_chart_type,
     handle_change_encoding,
-    handle_change_title,
     handle_change_layout,
-    handle_add_chart,
-    handle_remove_chart,
     handle_change_theme,
+    handle_change_title,
     handle_full_redesign,
+    handle_modify_sql,
+    handle_remove_chart,
+    handle_rerun_sql,
 )
 from services.database.db_config_models import get_db_config
 from services.database.db_connection_service import build_connection_string

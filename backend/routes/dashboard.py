@@ -6,20 +6,11 @@ All endpoints require authentication.
 """
 
 import uuid
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import JSONResponse, StreamingResponse
-
-from routes.auth import get_current_active_user, User
-from langchain_agents.dashboard.models import (
-    DashboardGenerateRequest,
-    DashboardRefineRequest,
-    DashboardRefreshRequest,
-    DashboardResponse,
-    LayoutUpdateRequest,
-    DashboardFilterRequest,
-    LayoutConfig,
-    ChartLayoutPosition,
-    ComposedDashboardSpec,
+from langchain_agents.dashboard.agents.refinement_classifier import (
+    classify_refinement_intent,
 )
 from langchain_agents.dashboard.filter_utils import apply_filters_to_sql
 from langchain_agents.dashboard.graph import (
@@ -28,27 +19,36 @@ from langchain_agents.dashboard.graph import (
     run_selective_refinement,
     stream_dashboard_generation,
 )
+from langchain_agents.dashboard.models import (
+    ChartLayoutPosition,
+    ComposedDashboardSpec,
+    DashboardFilterRequest,
+    DashboardGenerateRequest,
+    DashboardRefineRequest,
+    DashboardRefreshRequest,
+    DashboardResponse,
+    LayoutConfig,
+    LayoutUpdateRequest,
+)
+from routes.auth import User, get_current_active_user
 from services.dashboard.session_service import (
-    save_dashboard_session,
-    get_dashboard_session,
-    update_dashboard_session,
-    update_dashboard_layout,
-    update_chart_customizations,
-    list_dashboard_sessions,
     delete_dashboard_session,
-)
-from langchain_agents.dashboard.agents.refinement_classifier import (
-    classify_refinement_intent,
-)
-from services.database.db_connection_service import (
-    run_query_and_return_df,
-    build_connection_string,
+    get_dashboard_session,
+    list_dashboard_sessions,
+    save_dashboard_session,
+    update_chart_customizations,
+    update_dashboard_layout,
+    update_dashboard_session,
 )
 from services.database.db_config_models import get_db_config
+from services.database.db_connection_service import (
+    build_connection_string,
+    run_query_and_return_df,
+)
 from services.sse_utils import (
-    format_progress_event,
     format_complete_event,
     format_error_event,
+    format_progress_event,
 )
 from utilities import create_simple_logger
 
@@ -67,9 +67,9 @@ def _sanitize_for_json(data: list) -> list:
     - bytes -> base64 string
     - NaN/Inf -> None
     """
-    from decimal import Decimal
-    from datetime import datetime, date
     import math
+    from datetime import date, datetime
+    from decimal import Decimal
 
     def sanitize_value(val):
         if val is None:

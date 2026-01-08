@@ -3,11 +3,12 @@ User Database Management using MongoDB
 Provides CRUD operations for user authentication with RBAC and account expiry
 """
 
-from typing import Optional, Dict, Any
 from datetime import datetime, timedelta
-from pymongo import MongoClient, ASCENDING
-from pymongo.errors import DuplicateKeyError
+from typing import Any, Dict, Optional
+
 from env import MONGO_URI
+from pymongo import ASCENDING, MongoClient
+from pymongo.errors import DuplicateKeyError
 from utilities import create_simple_logger
 
 logger = create_simple_logger(__name__)

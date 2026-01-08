@@ -1,9 +1,10 @@
-from rich.console import Console
-from rich.traceback import Traceback
-from rich.theme import Theme
-from rich.syntax import Syntax
-from rich.panel import Panel
 from datetime import datetime
+
+from rich.console import Console
+from rich.panel import Panel
+from rich.syntax import Syntax
+from rich.theme import Theme
+from rich.traceback import Traceback
 
 try:
     from e2b_code_interpreter import Sandbox  # type: ignore
@@ -17,14 +18,14 @@ except ImportError:
             )
 
 
-from typing import Optional, Dict, Any, Callable
+from typing import Any, Callable, Dict, Optional
 
 from .local_python_interpreter import (
-    evaluate_python_code,
-    BASE_PYTHON_TOOLS,
     BASE_BUILTIN_MODULES,
+    BASE_PYTHON_TOOLS,
     DEFAULT_MAX_LEN_OUTPUT,
     InterpreterError,
+    evaluate_python_code,
     find_spec,
 )
 

@@ -11,18 +11,17 @@ sequential agent pipeline:
 
 import time
 import uuid
-from typing import Dict, Any, Optional, AsyncGenerator
+from typing import Any, AsyncGenerator, Dict, Optional
 
-from langgraph.graph import StateGraph, END
-
+from langchain_agents.dashboard.agents.data_agent import data_agent_node
+from langchain_agents.dashboard.agents.layout_agent import layout_agent_node
+from langchain_agents.dashboard.agents.strategy_agent import strategy_agent_node
+from langchain_agents.dashboard.agents.viz_spec_agent import viz_spec_agent_node
 from langchain_agents.dashboard.state import (
     DashboardGraphState,
     create_initial_dashboard_state,
 )
-from langchain_agents.dashboard.agents.strategy_agent import strategy_agent_node
-from langchain_agents.dashboard.agents.data_agent import data_agent_node
-from langchain_agents.dashboard.agents.viz_spec_agent import viz_spec_agent_node
-from langchain_agents.dashboard.agents.layout_agent import layout_agent_node
+from langgraph.graph import END, StateGraph
 from utilities import create_simple_logger
 
 logger = create_simple_logger(__name__)

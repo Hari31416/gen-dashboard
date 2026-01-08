@@ -4,9 +4,8 @@ GeoJSON Service for Map Chart Generation.
 Provides URL mappings and configuration for Indian geographic data files.
 """
 
-from typing import Dict, Optional
 import re
-
+from typing import Dict, Optional
 
 # Base URL for serving GeoJSON files (relative to static mount)
 GEOJSON_BASE_URL = "/static/geojsons"

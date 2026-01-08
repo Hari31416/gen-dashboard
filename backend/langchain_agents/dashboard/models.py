@@ -9,10 +9,11 @@ This module defines all data models used across the dashboard generation agents:
 - API Request/Response models
 """
 
-from typing import List, Dict, Any, Optional, Literal
-from pydantic import BaseModel, Field
 from datetime import datetime
 from enum import Enum
+from typing import Any, Dict, List, Literal, Optional
+
+from pydantic import BaseModel, Field
 
 
 class ChartType(str, Enum):

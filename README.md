@@ -120,3 +120,15 @@ ai-dashboard/
 ## Contributing
 
 Contributions are welcome! Please fork the repository and submit a pull request for any enhancements or bug fixes.
+
+### Code Quality
+
+We enforce strict coding standards using `pre-commit`:
+
+```bash
+# Install git hooks
+pre-commit install
+
+# Run all checks manually
+pre-commit run --all-files
+```

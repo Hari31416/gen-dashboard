@@ -1,6 +1,7 @@
+from utilities import create_simple_logger
+
 from .lang_detection import detect_language
 from .lang_translation import translate_text
-from utilities import create_simple_logger
 
 logger = create_simple_logger(__name__)
 

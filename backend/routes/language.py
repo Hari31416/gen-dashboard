@@ -1,10 +1,8 @@
-from utilities import create_simple_logger
-from services.language import detect_language, translate_text
-
-from pydantic import BaseModel
-from fastapi.routing import APIRouter
 from fastapi.responses import JSONResponse
-
+from fastapi.routing import APIRouter
+from pydantic import BaseModel
+from services.language import detect_language, translate_text
+from utilities import create_simple_logger
 
 logger = create_simple_logger(__name__)
 router = APIRouter(prefix="/language", tags=["language services"])

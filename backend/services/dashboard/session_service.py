@@ -7,12 +7,12 @@ This module handles MongoDB-backed session storage for:
 - SQL queries for refresh operations
 """
 
-from typing import Dict, Any, Optional, List
 from datetime import datetime
-from pymongo import MongoClient
-from pymongo.collection import Collection
+from typing import Any, Dict, List, Optional
 
 from env import MONGO_URI
+from pymongo import MongoClient
+from pymongo.collection import Collection
 from utilities import create_simple_logger
 
 logger = create_simple_logger(__name__)

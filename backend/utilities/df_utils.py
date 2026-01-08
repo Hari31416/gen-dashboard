@@ -2,15 +2,16 @@
 DataFrame utilities for data processing.
 """
 
-import pandas as pd
-from typing import Any, Dict, List, Optional
 import math
+from typing import Any, Dict, List, Optional
+
+import pandas as pd
 
 
 def make_json_compliant(data: Any) -> Any:
     """
     Recursively process data to ensure JSON compliance by replacing NaN and Inf values.
-    
+
     Args:
         data: The data to be processed (can be dict, list, or primitive types)
     Returns:
@@ -35,10 +36,10 @@ def make_json_compliant(data: Any) -> Any:
 def df_to_json_safe(df: pd.DataFrame) -> List[Dict[str, Any]]:
     """
     Convert a DataFrame to a JSON-safe list of dictionaries.
-    
+
     Args:
         df: DataFrame to convert
-        
+
     Returns:
         List of dictionaries with JSON-safe values
     """
@@ -49,11 +50,11 @@ def df_to_json_safe(df: pd.DataFrame) -> List[Dict[str, Any]]:
 def truncate_dataframe(df: pd.DataFrame, max_rows: int = 1000) -> pd.DataFrame:
     """
     Truncate a DataFrame to a maximum number of rows.
-    
+
     Args:
         df: DataFrame to truncate
         max_rows: Maximum number of rows
-        
+
     Returns:
         Truncated DataFrame
     """
@@ -65,10 +66,10 @@ def truncate_dataframe(df: pd.DataFrame, max_rows: int = 1000) -> pd.DataFrame:
 def get_dataframe_summary(df: pd.DataFrame) -> Dict[str, Any]:
     """
     Get a summary of a DataFrame including shape, columns, and sample data.
-    
+
     Args:
         df: DataFrame to summarize
-        
+
     Returns:
         Dictionary with summary information
     """
@@ -79,7 +80,7 @@ def get_dataframe_summary(df: pd.DataFrame) -> Dict[str, Any]:
             "dtypes": {},
             "sample": [],
         }
-    
+
     return {
         "shape": df.shape,
         "columns": df.columns.tolist(),
@@ -87,4 +88,3 @@ def get_dataframe_summary(df: pd.DataFrame) -> Dict[str, Any]:
         "sample": df.head(5).to_dict(orient="records"),
         "memory_usage_bytes": df.memory_usage(deep=True).sum(),
     }
-

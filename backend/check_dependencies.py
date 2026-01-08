@@ -3,10 +3,11 @@ Dependency health check script for Gen-BI backend.
 Checks if all required services are running before starting the application.
 """
 
-from dotenv import load_dotenv
 import os
 import sys
 from typing import Tuple
+
+from dotenv import load_dotenv
 from pymongo import MongoClient
 from utilities.utils import create_simple_logger
 

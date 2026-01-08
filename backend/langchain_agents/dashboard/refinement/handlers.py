@@ -6,7 +6,8 @@ Handlers receive context and return the updated dashboard state.
 """
 
 import copy
-from typing import Dict, Any, List, Optional
+from typing import Any, Dict, List, Optional
+
 from utilities import create_simple_logger
 
 logger = create_simple_logger(__name__)
@@ -639,8 +640,9 @@ async def handle_change_theme(
         Dict with updated individual_specs containing new theme config
     """
     import json
-    from langchain_core.messages import SystemMessage, HumanMessage
+
     from langchain_agents.llm_utils import get_llm
+    from langchain_core.messages import HumanMessage, SystemMessage
 
     theme_desc = action.parameters.get("theme_description", "")
     target_chart_id = action.target_chart_id

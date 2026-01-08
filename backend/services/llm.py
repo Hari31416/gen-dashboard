@@ -1,9 +1,10 @@
-from litellm import acompletion, completion
-from typing import List, Any, AsyncGenerator, Dict, Optional, Union, Tuple
 import os
 import time
+from typing import Any, AsyncGenerator, Dict, List, Optional, Tuple, Union
+
+from env import LLM_MODEL, NUM_RETRIES
+from litellm import acompletion, completion
 from utilities import create_simple_logger
-from env import NUM_RETRIES, LLM_MODEL
 
 logger = create_simple_logger(__name__)
 

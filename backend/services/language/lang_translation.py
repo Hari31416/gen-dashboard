@@ -1,12 +1,8 @@
-from env import (
-    BHASHINI_API_KEY,
-    BHASHINI_ENDPOINT_URL,
-    BHASHINI_TRANSLATION_SERVICE_ID,
-)
-from utilities import create_simple_logger
+import json
 
 import requests
-import json
+from env import BHASHINI_API_KEY, BHASHINI_ENDPOINT_URL, BHASHINI_TRANSLATION_SERVICE_ID
+from utilities import create_simple_logger
 
 logger = create_simple_logger(__name__)
 
