@@ -1,7 +1,12 @@
 /// <reference types="vite/client" />
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import embed from 'vega-embed';
+import { Handler } from 'vega-tooltip';
 import GridLayout, { type Layout } from 'react-grid-layout';
+
+// Create a shared tooltip handler for all charts to prevent conflicts
+// When multiple charts create their own handlers, only the last one works
+const sharedTooltipHandler = new Handler();
 import 'react-grid-layout/css/styles.css';
 import 'react-resizable/css/styles.css';
 import type { ComposedDashboardSpec, LayoutConfig } from '@/types/dashboard';
@@ -189,20 +194,25 @@ const IndividualChart = ({ spec, chartId: _chartId, customization, onFilterChang
                     Object.keys(newEncoding).forEach(channel => {
                         const def = newEncoding[channel];
                         if (def && typeof def === 'object') {
-                            const newDef = { ...def };
+                            if (Array.isArray(def)) {
+                                // If it's an array (like tooltip), define it properly and strip colors if needed
+                                newEncoding[channel] = def.map(stripColors);
+                            } else {
+                                const newDef = { ...def };
 
-                            // Strip constant color encodings
-                            if ((channel === 'color' || channel === 'fill' || channel === 'stroke') && 'value' in newDef && typeof newDef.value === 'string') {
-                                delete newEncoding[channel];
-                                return;
-                            }
-
-                            ['axis', 'legend', 'header'].forEach(guide => {
-                                if (newDef[guide] && typeof newDef[guide] === 'object') {
-                                    newDef[guide] = stripColors(newDef[guide]);
+                                // Strip constant color encodings
+                                if ((channel === 'color' || channel === 'fill' || channel === 'stroke') && 'value' in newDef && typeof newDef.value === 'string') {
+                                    delete newEncoding[channel];
+                                    return;
                                 }
-                            });
-                            newEncoding[channel] = newDef;
+
+                                ['axis', 'legend', 'header'].forEach(guide => {
+                                    if (newDef[guide] && typeof newDef[guide] === 'object') {
+                                        newDef[guide] = stripColors(newDef[guide]);
+                                    }
+                                });
+                                newEncoding[channel] = newDef;
+                            }
                         }
                     });
                     newObj.encoding = newEncoding;
@@ -312,6 +322,7 @@ const IndividualChart = ({ spec, chartId: _chartId, customization, onFilterChang
                 mode: 'vega-lite',
                 actions: { export: true, source: false, compiled: false, editor: false },
                 renderer: 'svg',
+                tooltip: sharedTooltipHandler.call,
                 ...loaderOptions,
             }).then((result: any) => {
                 viewRef.current = result.view;
@@ -1204,7 +1215,8 @@ const LegacyChartRenderer: React.FC<{ dashboard: ComposedDashboardSpec }> = ({ d
             embed(containerRef.current, dashboard.vega_lite_spec, {
                 mode: 'vega-lite',
                 actions: true,
-                theme: 'quartz'
+                theme: 'quartz',
+                tooltip: sharedTooltipHandler.call,
             }).catch(console.error);
         }
     }, [dashboard]);

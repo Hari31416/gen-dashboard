@@ -67,3 +67,10 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* Vega tooltip styling - ensure tooltips appear above all content */
+#vg-tooltip-element {
+  z-index: 9999 !important;
+  position: fixed !important;
+  pointer-events: none;
+}

@@ -77,6 +77,9 @@ importers:
       vega-lite:
         specifier: ^6.4.1
         version: 6.4.1(vega@6.2.0)
+      vega-tooltip:
+        specifier: ^1.1.0
+        version: 1.1.0
     devDependencies:
       '@eslint/js':
         specifier: ^9.39.1
@@ -2254,6 +2257,9 @@ packages:
 
   vega-tooltip@1.0.0:
     resolution: {integrity: sha512-P1R0JP29v0qnTuwzCQ0SPJlkjAzr6qeyj+H4VgUFSykHmHc1OBxda//XBaFDl/bZgIscEMvjKSjZpXd84x3aZQ==}
+
+  vega-tooltip@1.1.0:
+    resolution: {integrity: sha512-PP4CxC8gX//SBUtlcJkwffmvdZBvzAsqS0EANBKvImJ9PxV/KtJkcs7RCqp+A7nh2cjWdVzyOBWAvqKhXJStTQ==}
 
   vega-transforms@5.1.0:
     resolution: {integrity: sha512-mj/sO2tSuzzpiXX8JSl4DDlhEmVwM/46MTAzTNQUQzJPMI/n4ChCjr/SdEbfEyzlD4DPm1bjohZGjLc010yuMg==}
@@ -4485,6 +4491,10 @@ snapshots:
       vega-util: 2.1.0
 
   vega-tooltip@1.0.0:
+    dependencies:
+      vega-util: 2.1.0
+
+  vega-tooltip@1.1.0:
     dependencies:
       vega-util: 2.1.0
 
