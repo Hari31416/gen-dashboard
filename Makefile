@@ -7,7 +7,7 @@ LOGS_DIR = logs
 BACKEND_PORT = 8000
 FRONTEND_PORT = 5173
 
-.PHONY: help setup backend-setup frontend-setup start backend-start frontend-start stop backend-stop frontend-stop logs-dir up
+.PHONY: help setup backend-setup frontend-setup start backend-start frontend-start stop backend-stop frontend-stop logs-dir up wiki-setup wiki-serve wiki-build
 
 up:
 	docker compose up -d mongodb
@@ -28,6 +28,9 @@ help:
 	@echo "  make frontend-stop  - Stop frontend server"
 	@echo "  make up             - Start both backend and frontend"
 	@echo "  make down           - Stop both backend and frontend"
+	@echo "  make wiki-setup     - Install MkDocs dependencies"
+	@echo "  make wiki-serve     - Serve the wiki documentation locally"
+	@echo "  make wiki-build     - Build the static wiki site"
 
 logs-dir:
 	@mkdir -p $(LOGS_DIR)
@@ -62,3 +65,15 @@ backend-stop:
 frontend-stop:
 	@echo "Stopping frontend on port $(FRONTEND_PORT)..."
 	@-lsof -ti:$(FRONTEND_PORT) | xargs kill -9 2>/dev/null || echo "Frontend not running"
+
+wiki-setup:
+	@echo "Installing MkDocs dependencies..."
+	cd $(BACKEND_DIR) && uv pip install mkdocs-material
+
+wiki-serve:
+	@echo "Serving wiki documentation..."
+	cd $(BACKEND_DIR) && uv run mkdocs serve --config-file ../mkdocs.yml
+
+wiki-build:
+	@echo "Building static wiki site..."
+	cd $(BACKEND_DIR) && uv run mkdocs build --config-file ../mkdocs.yml

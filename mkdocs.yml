@@ -1,0 +1,67 @@
+site_name: AI Dashboard Documentation
+site_description: A powerful, agentic AI-powered dashboard generator documentation.
+site_author: Hari
+repo_url: https://github.com/Hari31416/gen-dashboard
+edit_uri: edit/main/wiki/
+
+theme:
+  name: material
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - navigation.expand
+    - navigation.top
+    - search.suggest
+    - search.highlight
+    - content.code.copy
+
+plugins:
+  - search
+
+markdown_extensions:
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.magiclink
+  - pymdownx.tasklist:
+      custom_checkbox: true
+  - attr_list
+
+nav:
+  - Welcome: index.md
+  - Guide:
+    - Home: Home.md
+    - Architecture: Architecture.md
+    - Deployment: Deployment.md
+  - Backend:
+    - Overview: backend/Overview.md
+    - Agents: backend/Agents.md
+    - API Reference: backend/API-Reference.md
+    - Database: backend/Database.md
+  - Frontend:
+    - Overview: frontend/Overview.md
+    - Components: frontend/Components.md
+    - Viz Engine: frontend/Viz-Engine.md
+    - Customization: frontend/Customization.md
+
+docs_dir: wiki
+site_dir: site

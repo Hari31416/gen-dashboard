@@ -2,6 +2,9 @@
 
 A powerful, agentic AI-powered dashboard generator that converts natural language requests into fully functional, interactive data dashboards using a multi-agent orchestration pipeline.
 
+> [!TIP]
+> **New to the project?** Check out our comprehensive [Project Wiki](wiki/index.md) for detailed architecture, API docs, and customization guides.
+
 ## Architecture Overview
 
 The system employs a 4-stage sequential agent pipeline orchestrated via **LangGraph**. This ensures high-quality reasoning, systematic data fetching, and aesthetically consistent layout composition.
@@ -44,7 +47,7 @@ graph TD
 | Backend    | FastAPI, LangGraph, LangChain, LiteLLM, SQLAlchemy, UV |
 | Frontend   | React 19, Vite, Tailwind CSS, Vega-Lite, Shadcn UI     |
 | Data       | MongoDB (Logs/Sessions), Target SQL DBs                |
-| Monitoring | Structured Logging, SSE Progress Tracking              |
+| Python     | 3.13+                                                  |
 
 ## Project Structure
 
@@ -126,15 +129,10 @@ sequenceDiagram
     make start # Start Backend (8000) and Frontend (5173)
     ```
 
-## Usage Examples
+[See Full Deployment Guide](wiki/Deployment.md)
 
-### Natural Language Queries
-- *"Analyze sales by category for the last quarter"*
-- *"Show me top 10 customers by total spend with a bar chart"*
-- *"Compare monthly signup trends between 2023 and 2024"*
+## Wiki Directory
 
-### Smart Refinement
-After generation, you can refine your dashboard:
-- *"Change the revenue trend to a line chart"*
-- *"Add a title: 'Global Performance Metrics'"*
-- *"Remove the regional map chart"*
+- **Core**: [Home](wiki/Home.md) | [Architecture](wiki/Architecture.md) | [Deployment](wiki/Deployment.md)
+- **Backend**: [Overview](wiki/backend/Overview.md) | [Agents](wiki/backend/Agents.md) | [API Reference](wiki/backend/API-Reference.md)
+- **Frontend**: [Overview](wiki/frontend/Overview.md) | [Components](wiki/frontend/Components.md) | [Viz Engine](wiki/frontend/Viz-Engine.md)

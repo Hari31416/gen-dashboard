@@ -116,3 +116,4 @@ dist/
 
 # Unignore frontend lib
 !frontend/src/lib/
+site/
