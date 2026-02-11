@@ -1,134 +1,140 @@
 # AI Dashboard
 
-A powerful, agentic AI-powered dashboard generator that converts natural language requests into fully functional, interactive, and aesthetically pleasing data dashboards.
+A powerful, agentic AI-powered dashboard generator that converts natural language requests into fully functional, interactive data dashboards using a multi-agent orchestration pipeline.
 
-## Overview
+## Architecture Overview
 
-The **AI Dashboard** leverages a sophisticated **multi-agent pipeline** to automate the end-to-end process of data visualization. It translates user queries (e.g., "Show me sales trends for Q3 compared to last year") into SQL queries, executes them securely, generates Vega-Lite visualization specifications, and intelligently composes them into a responsive layout.
+The system employs a 4-stage sequential agent pipeline orchestrated via **LangGraph**. This ensures high-quality reasoning, systematic data fetching, and aesthetically consistent layout composition.
 
-### Key Features
-
-- **Natural Language to Dashboard**: Just ask for what you want to see.
-- **Multi-Agent Architecture**: A 4-stage pipeline (Strategy, Data, Viz Spec, Layout) ensures high-quality, reasoned outputs.
-- **Interactive Visualizations**: Powered by **Vega-Lite** for rich, interactive charts.
-- **Drill-Down & Refinement**: Click on charts to filter data or ask follow-up questions to refine the dashboard.
-- **Secure SQL Execution**: Built-in sanitization and validation to prevent unsafe database operations.
-- **Modern UI**: A responsive, "dark mode" aesthetic built with React and Tailwind CSS.
-
-## Architecture
-
-The system is built on a robust modern stack:
-
-### Backend
-
-- **FastAPI**: High-performance async API framework.
-- **LangGraph / LangChain**: Orchestrates the sequential agent workflow.
-- **LLMs**: Powered by OpenAI (GPT-4o) or Google Gemini.
-- **SQLAlchemy**: Database ORM for secure data access.
-- **Pydantic**: Enforcing strict schema validation for all agent outputs.
-
-### Frontend
-
-- **React**: Component-based UI library.
-- **Vite**: Fast build tool and dev server.
-- **Tailwind CSS**: Utility-first styling framework.
-- **Vega-Embed**: Embedding Vega-Lite visualizations.
-
-## Prerequisites
-
-Before you begin, ensure you have the following installed:
-
-- **Python 3.13+**
-- **Node.js 18+** & **pnpm**
-- **Docker** (for running the database container, i.e., MongoDB)
-- **uv** (Required for backend dependency management)
-
-## Getting Started
-
-### 1. Clone the Repository
-
-```bash
-git clone <repository-url>
-cd ai-dashboard
+```mermaid
+graph TD
+    User([User Request]) --> API[FastAPI Gateway]
+    API --> Graph[LangGraph Orchestrator]
+    
+    subgraph "Agentic Pipeline"
+        Graph --> Strategy[Strategy Agent]
+        Strategy -- Chart Goals --> Data[Data Agent]
+        Data -- Data & SQL --> Viz[Viz Spec Agent]
+        Viz -- Vega-Lite Specs --> Layout[Layout Agent]
+        Layout --> Final[Composed Dashboard]
+    end
+    
+    Data --> DB[(Target Database)]
+    Final --> UI[React Frontend]
 ```
 
-### 2. Environment Setup
+### Core Execution Flow
+1.  **Strategy Agent**: Analyzes the user prompt and schema to plan specific chart objectives (chart type, variables, goal).
+2.  **Data Agent**: Generates sanitized SQL queries, executes them against the database, and retrieves results.
+3.  **Viz Spec Agent**: Translates data and goals into precise **Vega-Lite** JSON specifications.
+4.  **Layout Agent**: Determines the optimal responsive grid arrangement for the generated charts.
 
-Create a `.env` file in the root directory (or ensure the existing one is configured correctly) with your API keys and database credentials.
+## Key Features
 
-```env
-OPENAI_API_KEY=sk-...
-# or
-GEMINI_API_KEY=...
-DATABASE_URL=...
-```
+- **Natural Language to Dashboard**: High-level queries are translated into visual insights without manual SQL or chart configuration.
+- **Smart Refinement**: "Chat with your data" to modify chart types, add/remove components, or update titles.
+- **Fast Filtering & Drill-Down**: Intelligent sub-query injection for instant (~1s) dashboard-wide filtering.
+- **SSE Streaming**: Real-time progress updates via Server-Sent Events during the complex generation process.
+- **Multi-DB Support**: Secure connection management for PostgreSQL, MySQL, and more.
 
-### 3. Install Dependencies
+## Tech Stack
 
-Use the provided `Makefile` to set up both backend and frontend environments effortlessly.
-
-```bash
-make setup
-```
-
-This command will:
-
-- Create a Python virtual environment and install backend requirements using `uv sync`.
-- Install frontend Node.js packages.
-
-### 4. Start the Application
-
-Start both the backend and frontend servers with a single command:
-
-```bash
-make start
-```
-
-- **Frontend**: <http://localhost:5173>
-- **Backend API**: <http://localhost:8000>
-
-## 🎮 Usage
-
-1. **Open the App**: Navigate to `<http://localhost:5173>`.
-2. **Enter a Prompt**: In the input box, type a request like "Analyze the sales performance by region for the last 12 months."
-3. **View Dashboard**: The system will plan, fetch data, and generate a dashboard.
-4. **Refine**:
-   - **Click** on a bar or point to filter the rest of the dashboard.
-   - **Chat** to refine: "Switch the trend chart to a line chart."
+| Layer      | Core Technologies                                      |
+| :--------- | :----------------------------------------------------- |
+| Backend    | FastAPI, LangGraph, LangChain, LiteLLM, SQLAlchemy, UV |
+| Frontend   | React 19, Vite, Tailwind CSS, Vega-Lite, Shadcn UI     |
+| Data       | MongoDB (Logs/Sessions), Target SQL DBs                |
+| Monitoring | Structured Logging, SSE Progress Tracking              |
 
 ## Project Structure
 
 ```txt
 ai-dashboard/
-├── backend/            # FastAPI application & Agent logic
-├── frontend/           # React + Vite application
-├── logs/               # Application logs
-├── Makefile            # Convenience commands
-├── docker-compose.yml  # Docker services (e.g., MongoDB)
-└── REAMDE.md           # Project documentation
+├── backend/
+│   ├── app.py                  # Entry point & FastAPI setup
+│   ├── langchain_agents/      # LangGraph orchestrator & agents
+│   │   ├── dashboard/         # Dashboard-specific agent logic
+│   │   │   ├── agents/        # Individual stage implementations
+│   │   │   └── graph.py       # Pipeline definition (Strategy -> Data -> Viz -> Layout)
+│   ├── routes/                # API endpoints (Auth, Dashboard, Database)
+│   ├── services/              # Business logic (DB connection, Sessions)
+│   └── utilities/             # Shared helpers (Logger, SSE utils)
+├── frontend/
+│   ├── src/
+│   │   ├── components/        # Dashboard renderer, Chart components
+│   │   ├── hooks/             # SSE & API interaction hooks
+│   │   └── pages/             # Layout & Auth views
+├── Makefile                    # Developer experience commands
+└── docker-compose.yml          # MongoDB service for local sessions
 ```
 
-## Useful Commands
+## Logic Flows
 
-| Command      | Description                                   |
-| :----------- | :-------------------------------------------- |
-| `make setup` | Install all dependencies (Backend + Frontend) |
-| `make start` | Start both servers                            |
-| `make stop`  | Stop both servers                             |
-| `make up`    | Start Docker containers (DB)                  |
+### Dashboard Generation Pathway
 
-## Contributing
+```mermaid
+sequenceDiagram
+    participant U as User
+    participant F as Frontend
+    participant B as Backend (FastAPI)
+    participant G as LangGraph (Agents)
+    participant D as Database
 
-Contributions are welcome! Please fork the repository and submit a pull request for any enhancements or bug fixes.
-
-### Code Quality
-
-We enforce strict coding standards using `pre-commit`:
-
-```bash
-# Install git hooks
-pre-commit install
-
-# Run all checks manually
-pre-commit run --all-files
+    U->>F: Enter Prompt ("Show me revenue trends")
+    F->>B: POST /dashboard/generate/stream
+    B-->>F: SSE Stream (Progress: 0%)
+    
+    B->>G: run_dashboard_generation()
+    
+    G->>G: [Strategy] Plan Chart Goals
+    B-->>F: SSE Progress: 25% (Planning...)
+    
+    G->>D: [Data] Generate & Run SQL
+    D-->>G: ResultSet
+    B-->>F: SSE Progress: 50% (Fetching Data...)
+    
+    G->>G: [Viz Spec] Create Vega-Lite Specs
+    B-->>F: SSE Progress: 75% (Building Viz...)
+    
+    G->>G: [Layout] Compose Grid
+    
+    G-->>B: Final Dashboard Spec
+    B-->>F: SSE Complete (Full Spec)
+    F->>U: Render Interactive Dashboard
 ```
+
+## Installation & Setup
+
+### Prerequisites
+- Python 3.13+ (managed by `uv`)
+- Node.js 18+ & `pnpm`
+- Docker (for session storage)
+
+### Quick Start
+1.  **Clone & Configure**:
+    ```bash
+    git clone <repo-url>
+    cp backend/.env.example backend/.env
+    ```
+2.  **Automated Setup**:
+    ```bash
+    make setup  # Installs backend (uv) and frontend (pnpm)
+    ```
+3.  **Start Services**:
+    ```bash
+    make up    # Start MongoDB
+    make start # Start Backend (8000) and Frontend (5173)
+    ```
+
+## Usage Examples
+
+### Natural Language Queries
+- *"Analyze sales by category for the last quarter"*
+- *"Show me top 10 customers by total spend with a bar chart"*
+- *"Compare monthly signup trends between 2023 and 2024"*
+
+### Smart Refinement
+After generation, you can refine your dashboard:
+- *"Change the revenue trend to a line chart"*
+- *"Add a title: 'Global Performance Metrics'"*
+- *"Remove the regional map chart"*
