@@ -45,7 +45,7 @@ frontend-setup:
 	@echo "Setting up frontend..."
 	cd $(FRONTEND_DIR) && pnpm install
 
-start: logs-dir backend-start frontend-start
+start: up logs-dir backend-start frontend-start
 
 backend-start: logs-dir
 	@echo "Starting backend..."
@@ -57,7 +57,10 @@ frontend-start: logs-dir
 	@nohup bash -c "cd $(FRONTEND_DIR) && pnpm run dev -- --port $(FRONTEND_PORT) > ../$(LOGS_DIR)/frontend.log 2>&1" & \
 	echo "Frontend starting on port $(FRONTEND_PORT)... (logs in $(LOGS_DIR)/frontend.log)"
 
-stop: backend-stop frontend-stop
+stop: backend-stop frontend-stop down
+
+restart: stop start
+
 backend-stop:
 	@echo "Stopping backend on port $(BACKEND_PORT)..."
 	@-lsof -ti:$(BACKEND_PORT) | xargs kill -9 2>/dev/null || echo "Backend not running"
