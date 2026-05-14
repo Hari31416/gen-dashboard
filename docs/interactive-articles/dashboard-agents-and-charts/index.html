@@ -1,0 +1,1223 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Multi-Agent Dashboard Generation & Chart Types Engine</title>
+    <meta name="description"
+        content="Comprehensive engineering guide detailing LangGraph sequential agent choreography, Vega-Lite visual encoding models, and interactive dashboard state lifecycles." />
+
+    <!-- Typography -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@500;600;700;800&family=Fira+Code:wght@400;500&display=swap"
+        rel="stylesheet" />
+
+    <style>
+/* Inlined from ./style.css */
+/* Clean Minimalist Standalone Article Base Stylesheet */
+
+*,
+*::before,
+*::after {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+:root {
+    --bg-body: #ffffff;
+    --text-main: #1e293b;
+    --text-heading: #0f172a;
+    --text-muted: #64748b;
+    --border-color: #e2e8f0;
+    --border-soft: #f1f5f9;
+    --accent-color: #2563eb;
+    --accent-hover: #1d4ed8;
+    --accent-light: #eff6ff;
+    --code-bg: #0f172a;
+    --code-text: #f8fafc;
+    --font-sans: "Inter", -apple-system, BlinkMacSystemFont, sans-serif;
+    --font-heading: "Outfit", sans-serif;
+    --font-mono: "Fira Code", monospace;
+}
+
+body {
+    background-color: var(--bg-body);
+    color: var(--text-main);
+    font-family: var(--font-sans);
+    line-height: 1.75;
+    font-size: 1.05rem;
+    -webkit-font-smoothing: antialiased;
+}
+
+.layout-wrapper {
+    max-width: 760px;
+    margin: 0 auto;
+    padding: 4rem 1.5rem 2rem 1.5rem;
+}
+
+.article-content {
+    width: 100%;
+}
+
+.article-header {
+    margin-bottom: 2.5rem;
+    padding-bottom: 1.5rem;
+    border-bottom: 1px solid var(--border-soft);
+}
+
+.article-title {
+    font-family: var(--font-heading);
+    font-size: 2.5rem;
+    font-weight: 800;
+    color: var(--text-heading);
+    line-height: 1.2;
+}
+
+/* Table of Contents */
+.table-of-contents {
+    background-color: var(--border-soft);
+    border-radius: 8px;
+    padding: 1.25rem 1.5rem;
+    margin-bottom: 2.5rem;
+    border: 1px solid var(--border-color);
+}
+
+.toc-details summary {
+    cursor: pointer;
+    list-style: none;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    user-select: none;
+}
+
+.toc-details summary::-webkit-details-marker {
+    display: none;
+}
+
+.toc-details h3 {
+    margin: 0;
+    font-size: 1.1rem;
+    color: var(--text-heading);
+}
+
+.toc-toggle-icon {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    transition: transform 0.2s ease;
+}
+
+.toc-details[open] .toc-toggle-icon {
+    transform: rotate(180deg);
+}
+
+.toc-content {
+    margin-top: 1rem;
+    padding-top: 0.75rem;
+    border-top: 1px solid #e2e8f0;
+}
+
+.table-of-contents ul {
+    list-style-type: none;
+    padding-left: 0;
+    margin-bottom: 0;
+}
+
+.table-of-contents ul ul {
+    padding-left: 1.25rem;
+    margin-top: 0.25rem;
+    margin-bottom: 0.25rem;
+    border-left: 1px solid #cbd5e1;
+}
+
+.table-of-contents li {
+    margin-bottom: 0.4rem;
+    line-height: 1.4;
+}
+
+.table-of-contents a {
+    color: var(--accent-color);
+    text-decoration: none;
+    font-size: 0.95rem;
+}
+
+.table-of-contents ul ul a {
+    color: var(--text-muted);
+    font-size: 0.875rem;
+}
+
+.table-of-contents a:hover {
+    text-decoration: underline;
+    color: var(--accent-hover);
+}
+
+/* Article Body Formatting */
+h2 {
+    font-family: var(--font-heading);
+    font-size: 1.75rem;
+    font-weight: 700;
+    color: var(--text-heading);
+    margin: 3rem 0 1.25rem 0;
+    line-height: 1.3;
+}
+
+h3 {
+    font-family: var(--font-heading);
+    font-size: 1.25rem;
+    font-weight: 600;
+    color: var(--text-heading);
+    margin: 2rem 0 1rem 0;
+}
+
+p {
+    margin-bottom: 1.5rem;
+}
+
+strong {
+    color: var(--text-heading);
+    font-weight: 600;
+}
+
+ul,
+ol {
+    margin-bottom: 1.5rem;
+    padding-left: 1.5rem;
+}
+
+li {
+    margin-bottom: 0.5rem;
+}
+
+/* Figures & Images */
+figure {
+    margin: 2.5rem 0;
+}
+
+figure img {
+    width: 100%;
+    height: auto;
+    border-radius: 8px;
+    border: 1px solid var(--border-color);
+    display: block;
+}
+
+figcaption {
+    margin-top: 0.75rem;
+    font-size: 0.875rem;
+    color: var(--text-muted);
+    text-align: center;
+    line-height: 1.4;
+}
+
+/* Callouts */
+.callout {
+    background-color: var(--accent-light);
+    border-left: 4px solid var(--accent-color);
+    padding: 1.25rem 1.5rem;
+    border-radius: 0 8px 8px 0;
+    margin: 2rem 0;
+    font-size: 0.95rem;
+}
+
+.callout p:last-child {
+    margin-bottom: 0;
+}
+
+/* Code Blocks */
+.code-container {
+    margin: 2rem 0;
+    border-radius: 8px;
+    overflow: hidden;
+    background-color: var(--code-bg);
+    border: 1px solid var(--border-color);
+}
+
+.code-header {
+    background-color: #1e293b;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.4rem 1rem;
+    border-bottom: 1px solid #334155;
+}
+
+.code-label {
+    color: #94a3b8;
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+}
+
+.copy-btn {
+    background-color: transparent;
+    color: #94a3b8;
+    border: 1px solid #334155;
+    border-radius: 4px;
+    padding: 0.15rem 0.5rem;
+    font-family: var(--font-sans);
+    font-size: 0.75rem;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.copy-btn:hover {
+    background-color: #334155;
+    color: #f8fafc;
+}
+
+pre {
+    padding: 1.25rem 1rem;
+    overflow-x: auto;
+    font-family: var(--font-mono);
+    font-size: 0.85rem;
+    line-height: 1.6;
+    color: var(--code-text);
+}
+
+code {
+    font-family: var(--font-mono);
+    font-size: 0.875rem;
+    background-color: #f1f5f9;
+    padding: 0.15rem 0.35rem;
+    border-radius: 4px;
+    color: #0f172a;
+}
+
+pre code {
+    background-color: transparent;
+    padding: 0;
+    color: inherit;
+}
+
+/* Keyword Highlights */
+.kw {
+    color: #c084fc;
+    font-weight: 500;
+}
+
+.fn {
+    color: #38bdf8;
+}
+
+.st {
+    color: #a5d6ff;
+}
+
+.cm {
+    color: #64748b;
+    font-style: italic;
+}
+
+.dc {
+    color: #34d399;
+}
+
+.pr {
+    color: #f472b6;
+}
+
+/* Tables */
+table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 2rem 0;
+    font-size: 0.95rem;
+}
+
+th,
+td {
+    padding: 0.75rem 1rem;
+    text-align: left;
+    border-bottom: 1px solid var(--border-color);
+}
+
+th {
+    font-family: var(--font-heading);
+    font-weight: 600;
+    color: var(--text-heading);
+    background-color: #f8fafc;
+}
+
+/* =============================================================================
+   Interactive Simulator Widget Styles
+   ============================================================================= */
+
+.simulation-widget-container {
+    background-color: #f8fafc;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 1.5rem;
+    margin-top: 1.5rem;
+    font-family: var(--font-sans);
+}
+
+.sim-header {
+    margin-bottom: 1.25rem;
+}
+
+.sim-header label {
+    display: block;
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: var(--text-muted);
+    margin-bottom: 0.4rem;
+}
+
+.sim-controls {
+    display: flex;
+    gap: 0.75rem;
+    margin-bottom: 1.5rem;
+    flex-wrap: wrap;
+}
+
+.sim-select {
+    flex: 1;
+    min-width: 200px;
+    padding: 0.5rem 0.75rem;
+    border-radius: 6px;
+    border: 1px solid #cbd5e1;
+    background-color: #ffffff;
+    font-size: 0.95rem;
+    color: var(--text-main);
+    outline: none;
+    font-family: var(--font-sans);
+}
+
+.sim-btn {
+    background-color: var(--accent-color);
+    color: #ffffff;
+    border: none;
+    border-radius: 6px;
+    padding: 0.5rem 1.25rem;
+    font-weight: 600;
+    font-size: 0.95rem;
+    cursor: pointer;
+    transition: background-color 0.15s ease;
+}
+
+.sim-btn:hover {
+    background-color: var(--accent-hover);
+}
+
+.sim-btn:disabled {
+    background-color: #94a3b8;
+    cursor: not-allowed;
+}
+
+.sim-btn-secondary {
+    background-color: #e2e8f0;
+    color: var(--text-heading);
+    border: none;
+    border-radius: 6px;
+    padding: 0.4rem 1rem;
+    font-weight: 600;
+    font-size: 0.85rem;
+    cursor: pointer;
+}
+
+.sim-btn-secondary:hover {
+    background-color: #cbd5e1;
+}
+
+.sim-pipeline {
+    display: flex;
+    justify-content: space-between;
+    position: relative;
+    margin-bottom: 2rem;
+    padding: 0 0.5rem;
+}
+
+.sim-pipeline::before {
+    content: "";
+    position: absolute;
+    top: 15px;
+    left: 25px;
+    right: 25px;
+    height: 3px;
+    background-color: #e2e8f0;
+    z-index: 1;
+}
+
+.sim-pipeline-step {
+    position: relative;
+    z-index: 2;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    width: 80px;
+}
+
+.sim-step-indicator {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background-color: #ffffff;
+    border: 2px solid #cbd5e1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    font-size: 0.85rem;
+    color: #64748b;
+    margin-bottom: 0.4rem;
+    transition: all 0.3s ease;
+}
+
+.sim-pipeline-step.active .sim-step-indicator {
+    border-color: var(--accent-color);
+    background-color: var(--accent-light);
+    color: var(--accent-color);
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.2);
+}
+
+.sim-pipeline-step.completed .sim-step-indicator {
+    border-color: #10b981;
+    background-color: #10b981;
+    color: #ffffff;
+}
+
+.sim-step-label {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--text-muted);
+    text-align: center;
+}
+
+.sim-pipeline-step.active .sim-step-label {
+    color: var(--text-heading);
+}
+
+.sim-output-panel {
+    background-color: #ffffff;
+    border: 1px solid #cbd5e1;
+    border-radius: 6px;
+    overflow: hidden;
+}
+
+.sim-panel-header {
+    background-color: #f1f5f9;
+    padding: 0.5rem 1rem;
+    border-bottom: 1px solid #cbd5e1;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.sim-panel-title {
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: var(--text-heading);
+    font-family: var(--font-heading);
+}
+
+.sim-panel-status {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    font-family: var(--font-mono);
+}
+
+.sim-panel-body {
+    padding: 1rem;
+    min-height: 180px;
+    max-height: 350px;
+    overflow-y: auto;
+    font-size: 0.875rem;
+}
+
+.sim-json-view {
+    font-family: var(--font-mono);
+    white-space: pre-wrap;
+    color: #0f172a;
+    background: transparent;
+    padding: 0;
+    font-size: 0.8rem;
+    line-height: 1.5;
+}
+
+.sim-preview-grid {
+    display: grid;
+    grid-template-columns: repeat(12, 1fr);
+    gap: 0.75rem;
+}
+
+.sim-preview-chart {
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 6px;
+    padding: 0.75rem;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+}
+
+.sim-chart-title {
+    font-size: 0.8rem;
+    font-weight: 700;
+    color: #1e293b;
+    margin-bottom: 0.2rem;
+}
+
+.sim-chart-desc {
+    font-size: 0.7rem;
+    color: #64748b;
+    margin-bottom: 0.5rem;
+}
+
+.sim-chart-vis {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 70px;
+    background: #f8fafc;
+    border-radius: 4px;
+    border: 1px dashed #cbd5e1;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: #3b82f6;
+}
+
+.sim-refine-section {
+    margin-top: 1.5rem;
+    padding-top: 1.25rem;
+    border-top: 1px solid #cbd5e1;
+}
+
+.sim-refine-input-group {
+    display: flex;
+    gap: 0.5rem;
+    margin-top: 0.5rem;
+}
+
+.sim-refine-input {
+    flex: 1;
+    padding: 0.5rem 0.75rem;
+    border-radius: 6px;
+    border: 1px solid #cbd5e1;
+    font-size: 0.9rem;
+    outline: none;
+    font-family: var(--font-sans);
+}
+
+.sim-refine-input:focus {
+    border-color: var(--accent-color);
+}
+</style>
+</head>
+
+<body>
+    <div class="layout-wrapper">
+        <main class="article-content">
+            <header class="article-header">
+                <h1 class="article-title">Multi-Agent Dashboard Generation &amp; Chart Types Engine</h1>
+            </header>
+
+            <nav class="table-of-contents">
+                <details class="toc-details" open>
+                    <summary class="toc-summary">
+                        <h3>Table of Contents</h3>
+                        <span class="toc-toggle-icon">▼</span>
+                    </summary>
+                    <div class="toc-content">
+                        <ul>
+                            <li>
+                                <a href="#architecture">1. Architectural Primitives</a>
+                            </li>
+                            <li>
+                                <a href="#agent-choreography">2. Sequential Multi-Agent Choreography</a>
+                                <ul>
+                                    <li><a href="#strategy-agent">Strategy Agent</a></li>
+                                    <li><a href="#data-agent">Data Agent</a></li>
+                                    <li><a href="#viz-spec-agent">Viz Spec Agent</a></li>
+                                    <li><a href="#layout-agent">Layout Agent</a></li>
+                                    <li><a href="#refinement-classifier">Intent Classifier</a></li>
+                                </ul>
+                            </li>
+                            <li>
+                                <a href="#chart-types">3. Supported Visualization Engine</a>
+                                <ul>
+                                    <li><a href="#chart-standard">Standard Encodings</a></li>
+                                    <li><a href="#chart-advanced">Specialized Visualizations</a></li>
+                                </ul>
+                            </li>
+                            <li>
+                                <a href="#code-contracts">4. System Contracts &amp; Pipelines</a>
+                            </li>
+                            <li>
+                                <a href="#simulation-widget">5. Interactive Execution Simulator</a>
+                            </li>
+                        </ul>
+                    </div>
+                </details>
+            </nav>
+
+            <section id="architecture">
+                <h2>1. Architectural Primitives</h2>
+                <p>
+                    Modern generative visualization requires deterministic execution pipelines backed by robust schema
+                    enforcement. The AI Dashboard platform utilizes a decoupled, sequential agent architecture built on
+                    top of <strong>LangGraph</strong>. Instead of relying on a monolithic large language model call to
+                    generate complete dashboard configurations in a single pass, the pipeline isolates distinct
+                    cognitive tasks into specialized, context-aware agents.
+                </p>
+                <p>
+                    Each autonomous agent accepts a rigorously defined input state object and yields a validated
+                    <strong>Pydantic</strong> schema contract. This segregation guarantees deterministic routing,
+                    isolates errors to individual execution layers, and enables granular human-in-the-loop intervention
+                    during ongoing refinement cycles.
+                </p>
+
+                <figure>
+                    <svg viewBox="0 0 720 180" width="100%" height="100%"
+                        style="background: #f8fafc; border-radius: 8px; border: 1px solid #e2e8f0;">
+                        <defs>
+                            <marker id="arrow" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6"
+                                orient="auto-start-reverse">
+                                <path d="M 0 1 L 10 5 L 0 9 z" fill="#64748b" />
+                            </marker>
+                        </defs>
+                        <!-- Flow Nodes -->
+                        <rect x="20" y="60" width="110" height="60" rx="6" fill="#eff6ff" stroke="#2563eb"
+                            stroke-width="2" />
+                        <text x="75" y="90" font-family="Outfit" font-size="12" font-weight="700" fill="#1e293b"
+                            text-anchor="middle">Strategy Agent</text>
+                        <text x="75" y="106" font-family="Inter" font-size="10" fill="#64748b"
+                            text-anchor="middle">Chart Goals</text>
+
+                        <line x1="130" y1="90" x2="165" y2="90" stroke="#64748b" stroke-width="2"
+                            marker-end="url(#arrow)" />
+
+                        <rect x="175" y="60" width="110" height="60" rx="6" fill="#eff6ff" stroke="#2563eb"
+                            stroke-width="2" />
+                        <text x="230" y="90" font-family="Outfit" font-size="12" font-weight="700" fill="#1e293b"
+                            text-anchor="middle">Data Agent</text>
+                        <text x="230" y="106" font-family="Inter" font-size="10" fill="#64748b" text-anchor="middle">SQL
+                            &amp; Raw Data</text>
+
+                        <line x1="285" y1="90" x2="320" y2="90" stroke="#64748b" stroke-width="2"
+                            marker-end="url(#arrow)" />
+
+                        <rect x="330" y="60" width="110" height="60" rx="6" fill="#eff6ff" stroke="#2563eb"
+                            stroke-width="2" />
+                        <text x="385" y="90" font-family="Outfit" font-size="12" font-weight="700" fill="#1e293b"
+                            text-anchor="middle">Viz Spec Agent</text>
+                        <text x="385" y="106" font-family="Inter" font-size="10" fill="#64748b"
+                            text-anchor="middle">Vega-Lite JSON</text>
+
+                        <line x1="440" y1="90" x2="475" y2="90" stroke="#64748b" stroke-width="2"
+                            marker-end="url(#arrow)" />
+
+                        <rect x="485" y="60" width="110" height="60" rx="6" fill="#eff6ff" stroke="#2563eb"
+                            stroke-width="2" />
+                        <text x="540" y="90" font-family="Outfit" font-size="12" font-weight="700" fill="#1e293b"
+                            text-anchor="middle">Layout Agent</text>
+                        <text x="540" y="106" font-family="Inter" font-size="10" fill="#64748b"
+                            text-anchor="middle">Grid Coordinates</text>
+
+                        <line x1="595" y1="90" x2="630" y2="90" stroke="#64748b" stroke-width="2"
+                            marker-end="url(#arrow)" />
+
+                        <circle cx="665" cy="90" r="25" fill="#1e293b" />
+                        <text x="665" y="94" font-family="Outfit" font-size="11" font-weight="700" fill="#ffffff"
+                            text-anchor="middle">Done</text>
+                    </svg>
+                    <figcaption>Figure 1: Sequential LangGraph state flow passing strict Pydantic payload models across
+                        agents.</figcaption>
+                </figure>
+            </section>
+
+            <section id="agent-choreography">
+                <h2>2. Sequential Multi-Agent Choreography</h2>
+                <p>
+                    The orchestration logic compiles into a state graph managed by standard workflow transitions. Each
+                    agent owns a distinct subset of the transformation lifecycle.
+                </p>
+
+                <h3 id="strategy-agent">Strategy Agent</h3>
+                <p>
+                    The Strategy Agent ingests raw user natural language queries alongside target database schema
+                    snapshots. It resolves analytical intent to produce an explicit array of visualization objectives
+                    configured as <strong>ChartGoal</strong> structures. This layer enforces structural guardrails,
+                    limiting initial objectives to optimal density bounds (typically 3 to 5 charts) while determining
+                    target data columns, grouping variables, and mathematical aggregation types.
+                </p>
+
+                <h3 id="data-agent">Data Agent</h3>
+                <p>
+                    Acting upon translated objectives, the Data Agent maps the semantic requirements into syntactically
+                    valid SQL query statements matching the target dialect. It executes read-only extractions against
+                    the provisioned connection pool using strict query limits and timeout wrappers. The agent attaches
+                    complete execution metrics, column mappings, and raw row payloads directly to the active state
+                    payload.
+                </p>
+
+                <h3 id="viz-spec-agent">Viz Spec Agent</h3>
+                <p>
+                    The Viz Spec Agent maps extracted tabular data records into structured client-side specifications
+                    conforming to the <strong>Vega-Lite v6</strong> syntax. It automates graphical encodings by aligning
+                    continuous measures to visual scales, mapping categorical fields to distinct palette channels, and
+                    injecting interactive selection parameters to enable reactive cross-filtering across related
+                    dashboard components.
+                </p>
+
+                <h3 id="layout-agent">Layout Agent</h3>
+                <p>
+                    The Layout Agent aggregates disjoint visualization specifications into a unified graphical canvas.
+                    Utilizing grid layout algorithms compatible with standard layout engines (such as
+                    <strong>react-grid-layout</strong>), the agent computes multi-column positioning parameters. It
+                    derives deterministic column alignments (<code>x</code>), vertical positions (<code>y</code>), and
+                    element dimensions (<code>w</code>, <code>h</code>) based on priority weights to minimize empty
+                    container gaps.
+                </p>
+
+                <h3 id="refinement-classifier">Intent Classifier (Smart Refinement)</h3>
+                <p>
+                    During post-generation workflows, the Intent Classifier intercepts unstructured user feedback.
+                    Rather than triggering complete pipeline re-execution, this agent identifies localized update
+                    instructions and assigns them to discrete actions within the <strong>RefinementActionType</strong>
+                    enumeration. It directly invokes targeted operations such as updating specific titles, swapping
+                    encoding parameters, mutating underlying SQL logic, or recalculating structural layout coordinates.
+                </p>
+
+                <div class="callout">
+                    <p>
+                        <strong>Operational Tip:</strong> Decoupling visualization parsing from raw data gathering
+                        prevents hallucinations in target JSON formatting. If an upstream SQL query fails due to missing
+                        table references, execution halts cleanly before burning downstream visualization tokens.
+                    </p>
+                </div>
+            </section>
+
+            <section id="chart-types">
+                <h2>3. Supported Visualization Engine</h2>
+                <p>
+                    The visualization layer enforces deterministic graphical marks tailored to specific data
+                    distributions. The platform standardizes rendering profiles across primary visualization classes
+                    defined by the <strong>ChartType</strong> enumeration.
+                </p>
+
+                <h3 id="chart-standard">Standard Encodings</h3>
+                <ul>
+                    <li>
+                        <strong>Bar Chart (<code>bar</code>):</strong> Compares categorical quantities. Automatically
+                        assigns continuous measures to horizontal or vertical spatial scales while leveraging nominal
+                        dimension fields for axis labeling.
+                    </li>
+                    <li>
+                        <strong>Line Chart (<code>line</code>):</strong> Exposes temporal sequences and continuous trend
+                        evolutions. Injects zero-baseline protections and connects sequentially ordered coordinate
+                        points.
+                    </li>
+                    <li>
+                        <strong>Area Chart (<code>area</code>):</strong> Captures volumetric accumulation over
+                        continuous intervals. Renders base-filled paths to visualize part-to-whole series density.
+                    </li>
+                    <li>
+                        <strong>Arc / Pie Chart (<code>arc</code>):</strong> Represents proportional scalar
+                        relationships. Encodes metric values directly to radial slice paths within bounded circular
+                        domains.
+                    </li>
+                </ul>
+
+                <h3 id="chart-advanced">Specialized Visualizations</h3>
+                <ul>
+                    <li>
+                        <strong>Scatter Plot (<code>point</code>):</strong> Exposes multidimensional variance and
+                        structural correlations across two continuous metrics. Supports secondary encoding properties
+                        mapping dimensional clusters to discrete circle radii or distinct color gradients.
+                    </li>
+                    <li>
+                        <strong>Heatmap (<code>rect</code>):</strong> Displays dense multi-dimensional matrices. Maps
+                        intersection cells across two discrete categorical axes to sequential color palettes to
+                        communicate intensity concentrations.
+                    </li>
+                    <li>
+                        <strong>Choropleth Map (<code>geoshape</code>):</strong> Translates geographic column
+                        identifiers into interactive boundary layers using embedded GeoJSON data. Supports dynamic
+                        granularity scaling between macro state-level borders and granular district-level subdivisions.
+                    </li>
+                    <li>
+                        <strong>KPI Summary (<code>text</code>):</strong> Surfaces high-level executive metrics. Strips
+                        traditional axis parameters to render oversized numerical callouts alongside percentage trend
+                        deltas.
+                    </li>
+                </ul>
+            </section>
+
+            <section id="code-contracts">
+                <h2>4. System Contracts &amp; Pipelines</h2>
+                <p>
+                    Explicit runtime validation is governed by strongly-typed models. Below are concrete representations
+                    of the communication payloads passed across intermediate agent nodes.
+                </p>
+
+                <div class="code-container">
+                    <div class="code-header">
+                        <div class="code-label">models.py (Agent Contract Schema)</div>
+                        <button class="copy-btn">Copy</button>
+                    </div>
+                    <pre><code><span class="kw">class</span> <span class="fn">ChartGoal</span>(BaseModel):
+    chart_id: <span class="st">str</span> = Field(..., description=<span class="st">"Unique identifier for this chart"</span>)
+    chart_type: ChartType = Field(..., description=<span class="st">"Type of visualization"</span>)
+    title: <span class="st">str</span> = Field(..., description=<span class="st">"Chart title"</span>)
+    description: <span class="st">str</span> = Field(..., description=<span class="st">"What this chart shows"</span>)
+    
+    x_field: Optional[<span class="st">str</span>] = Field(<span class="pr">None</span>, description=<span class="st">"Field for X axis"</span>)
+    y_field: Optional[<span class="st">str</span>] = Field(<span class="pr">None</span>, description=<span class="st">"Field for Y axis"</span>)
+    aggregation: AggregationType = Field(default=AggregationType.NONE)
+    tables: List[<span class="st">str</span>] = Field(..., description=<span class="st">"Tables needed for this chart"</span>)</code></pre>
+                </div>
+
+                <div class="code-container">
+                    <div class="code-header">
+                        <div class="code-label">graph.py (Workflow Compilation)</div>
+                        <button class="copy-btn">Copy</button>
+                    </div>
+                    <pre><code><span class="kw">def</span> <span class="fn">create_dashboard_graph</span>() -&gt; StateGraph:
+    workflow = StateGraph(DashboardGraphState)
+    
+    workflow.add_node(<span class="st">"strategy"</span>, strategy_agent_node)
+    workflow.add_node(<span class="st">"data"</span>, data_agent_node)
+    workflow.add_node(<span class="st">"viz_spec"</span>, viz_spec_agent_node)
+    workflow.add_node(<span class="st">"layout"</span>, layout_agent_node)
+    
+    workflow.set_entry_point(<span class="st">"strategy"</span>)
+    workflow.add_conditional_edges(<span class="st">"strategy"</span>, should_continue_after_strategy)
+    workflow.add_edge(<span class="st">"layout"</span>, END)
+    
+    <span class="kw">return</span> workflow.compile()</code></pre>
+                </div>
+            </section>
+
+            <section id="simulation-widget">
+                <h2>5. Interactive Execution Simulator</h2>
+                <p>
+                    Use the active simulation console below to inspect internal state transformations across agents
+                    during a real-time lifecycle trace. Select an analytical input context, trigger the sequential
+                    compilation workflow, and review the structured contract updates emitted at each operational
+                    boundary.
+                </p>
+
+                <!-- Interactive Widget Application -->
+                <div id="agent-simulation-root" class="simulation-widget-container">
+                    <!-- Loaded dynamically via CSS & JS -->
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <script>
+/* Inlined from ./script.js */
+// Clean Minimalist Standalone Article Base JavaScript
+
+document.addEventListener('DOMContentLoaded', () => {
+    initCodeCopyButtons();
+    initAgentSimulationWidget();
+});
+
+// Also run immediately in case the script is loaded after DOMContentLoaded
+initCodeCopyButtons();
+
+function initCodeCopyButtons() {
+    document.querySelectorAll('.copy-btn').forEach(btn => {
+        // Prevent binding multiple times if called twice
+        if (btn.dataset.copyInitialized) return;
+        btn.dataset.copyInitialized = "true";
+
+        btn.addEventListener('click', () => {
+            const codeContainer = btn.closest('.code-container');
+            if (!codeContainer) return;
+
+            const codeBlock = codeContainer.querySelector('pre code') || codeContainer.querySelector('pre');
+            if (codeBlock) {
+                navigator.clipboard.writeText(codeBlock.textContent).then(() => {
+                    const originalText = btn.textContent;
+                    btn.textContent = 'Copied!';
+                    btn.style.color = '#34d399';
+                    btn.style.borderColor = '#34d399';
+                    setTimeout(() => {
+                        btn.textContent = originalText;
+                        btn.style.color = '';
+                        btn.style.borderColor = '';
+                    }, 2000);
+                }).catch(err => console.error('Copy failed', err));
+            }
+        });
+    });
+}
+
+// =============================================================================
+// Interactive Agent Simulation Widget Logic
+// =============================================================================
+
+function initAgentSimulationWidget() {
+    const root = document.getElementById('agent-simulation-root');
+    if (!root) return;
+
+    // Simulation Data Presets
+    const presets = {
+        sales: {
+            prompt: "Sales overview across regions and monthly revenue trend",
+            strategy: {
+                reasoning: "User wants a high-level executive view of regional sales performance alongside temporal sequence evolution. Configuring KPI, Bar, and Line charts.",
+                goals: [
+                    { id: "c1", type: "text", title: "Total Revenue", desc: "Executive KPI callout", x: null, y: "revenue", agg: "sum" },
+                    { id: "c2", type: "bar", title: "Sales by Region", desc: "Categorical volume comparison", x: "region", y: "revenue", agg: "sum" },
+                    { id: "c3", type: "line", title: "Monthly Revenue Trend", desc: "Temporal sequence evolution", x: "month", y: "revenue", agg: "sum" }
+                ]
+            },
+            data: {
+                sql: [
+                    "SELECT SUM(revenue) as revenue FROM sales;",
+                    "SELECT region, SUM(revenue) as revenue FROM sales GROUP BY region;",
+                    "SELECT month, SUM(revenue) as revenue FROM sales GROUP BY month ORDER BY month;"
+                ],
+                timeMs: 142.5
+            },
+            viz: {
+                specs: [
+                    { id: "c1", mark: "text", encoding: { text: { field: "revenue", type: "quantitative" } } },
+                    { id: "c2", mark: "bar", encoding: { x: { field: "region", type: "nominal" }, y: { field: "revenue", type: "quantitative" } } },
+                    { id: "c3", mark: "line", encoding: { x: { field: "month", type: "temporal" }, y: { field: "revenue", type: "quantitative" } } }
+                ]
+            },
+            layout: [
+                { i: "c1", w: 12, h: 1, title: "Total Revenue", desc: "$1,245,800 (+14% MoM)", visMark: "KPI Display" },
+                { i: "c2", w: 6, h: 2, title: "Sales by Region", desc: "Bar encoding on region", visMark: "📊 Bar Chart Rendered" },
+                { i: "c3", w: 6, h: 2, title: "Monthly Revenue Trend", desc: "Line trace over time", visMark: "📈 Line Chart Rendered" }
+            ]
+        },
+        infra: {
+            prompt: "Server metrics showing CPU utilization distribution and error heatmaps",
+            strategy: {
+                reasoning: "System telemetry assessment requires matrix-based intensity concentrations and real-time variations over dense intervals.",
+                goals: [
+                    { id: "c1", type: "line", title: "CPU Utilization Trace", desc: "Continuous metric timeline", x: "timestamp", y: "cpu_usage", agg: "average" },
+                    { id: "c2", type: "rect", title: "Error Matrix Heatmap", desc: "Intersection density matrix", x: "hour", y: "service", agg: "count" },
+                    { id: "c3", type: "point", title: "Latency vs Memory Scatter", desc: "Multidimensional variance", x: "memory", y: "latency", agg: "none" }
+                ]
+            },
+            data: {
+                sql: [
+                    "SELECT timestamp, AVG(cpu_usage) FROM server_metrics GROUP BY timestamp;",
+                    "SELECT hour, service, COUNT(*) FROM error_logs GROUP BY hour, service;",
+                    "SELECT memory, latency FROM server_metrics LIMIT 1000;"
+                ],
+                timeMs: 289.1
+            },
+            viz: {
+                specs: [
+                    { id: "c1", mark: "line", encoding: { x: { field: "timestamp", type: "temporal" }, y: { field: "cpu_usage", type: "quantitative" } } },
+                    { id: "c2", mark: "rect", encoding: { x: { field: "hour", type: "ordinal" }, y: { field: "service", type: "nominal" }, color: { aggregate: "count" } } },
+                    { id: "c3", mark: "point", encoding: { x: { field: "memory", type: "quantitative" }, y: { field: "latency", type: "quantitative" } } }
+                ]
+            },
+            layout: [
+                { i: "c1", w: 12, h: 2, title: "CPU Utilization Trace", desc: "Continuous timeline view", visMark: "📉 Continuous Timeline Trace" },
+                { i: "c2", w: 6, h: 2, title: "Error Matrix Heatmap", desc: "Density matrix cells", visMark: "🔲 Intensity Matrix Matrix" },
+                { i: "c3", w: 6, h: 2, title: "Latency vs Memory Scatter", desc: "Covariance plot mapping", visMark: "⏺️ Scatter Covariance View" }
+            ]
+        }
+    };
+
+    // State Variables
+    let currentPresetKey = 'sales';
+    let currentStage = 0; // 0: Idle, 1: Strategy, 2: Data, 3: Viz Spec, 4: Layout Complete
+    let isSimulating = false;
+    let feedbackText = '';
+    let isRefined = false;
+
+    // Render Function
+    function render() {
+        const p = presets[currentPresetKey];
+
+        // Build HTML string
+        root.innerHTML = `
+            <div class="sim-header">
+                <label>Select Analytical Context Preset:</label>
+                <div class="sim-controls">
+                    <select id="sim-preset-select" class="sim-select" ${isSimulating ? 'disabled' : ''}>
+                        <option value="sales" ${currentPresetKey === 'sales' ? 'selected' : ''}>"Sales overview across regions and monthly revenue trend"</option>
+                        <option value="infra" ${currentPresetKey === 'infra' ? 'selected' : ''}>"Server metrics showing CPU utilization distribution and error heatmaps"</option>
+                    </select>
+                    <button id="sim-trigger-btn" class="sim-btn" ${isSimulating ? 'disabled' : ''}>
+                        ${currentStage === 0 ? 'Trigger Generation Pipeline' : 'Restart Simulation Trace'}
+                    </button>
+                </div>
+            </div>
+
+            <!-- Pipeline Status Indicators -->
+            <div class="sim-pipeline">
+                <div class="sim-pipeline-step ${currentStage >= 1 ? 'completed' : currentStage === 1 ? 'active' : ''}">
+                    <div class="sim-step-indicator">1</div>
+                    <div class="sim-step-label">Strategy Agent</div>
+                </div>
+                <div class="sim-pipeline-step ${currentStage >= 2 ? 'completed' : currentStage === 2 ? 'active' : ''}">
+                    <div class="sim-step-indicator">2</div>
+                    <div class="sim-step-label">Data Agent</div>
+                </div>
+                <div class="sim-pipeline-step ${currentStage >= 3 ? 'completed' : currentStage === 3 ? 'active' : ''}">
+                    <div class="sim-step-indicator">3</div>
+                    <div class="sim-step-label">Viz Spec Agent</div>
+                </div>
+                <div class="sim-pipeline-step ${currentStage >= 4 ? 'completed' : currentStage === 4 ? 'active' : ''}">
+                    <div class="sim-step-indicator">4</div>
+                    <div class="sim-step-label">Layout Agent</div>
+                </div>
+            </div>
+
+            <!-- Active Output / Preview Panel -->
+            <div class="sim-output-panel">
+                <div class="sim-panel-header">
+                    <div class="sim-panel-title">
+                        ${currentStage === 0 ? 'System Idle' :
+                currentStage === 1 ? 'Contract Output: StrategyAgentOutput' :
+                    currentStage === 2 ? 'Contract Output: DataAgentOutput' :
+                        currentStage === 3 ? 'Contract Output: VizSpecAgentOutput' :
+                            'Composed Dashboard Canvas (Live Preview)'}
+                    </div>
+                    <div class="sim-panel-status">
+                        ${currentStage === 0 ? 'Awaiting Trigger' :
+                currentStage === 1 ? 'Pydantic Validated' :
+                    currentStage === 2 ? `Executed in ${p.data.timeMs}ms` :
+                        currentStage === 3 ? 'Vega-Lite v6 Specs Derived' :
+                            isRefined ? 'State Patched via Refinement' : 'Ready (Grid Coordinates Resolved)'}
+                    </div>
+                </div>
+                <div class="sim-panel-body">
+                    ${renderPanelBody(p)}
+                </div>
+            </div>
+
+            <!-- Smart Refinement Interception Console -->
+            ${currentStage === 4 ? `
+                <div class="sim-refine-section">
+                    <label style="font-size: 0.8rem; font-weight: 700; color: #1e293b; display: block;">Intercept Post-Generation Feedback (Smart Refinement Agent):</label>
+                    <p style="font-size: 0.75rem; color: #64748b; margin-bottom: 0.4rem;">Intent Classifier will parse instructions to issue localized state patches.</p>
+                    <div class="sim-refine-input-group">
+                        <input id="sim-refine-input" class="sim-refine-input" type="text" placeholder="e.g., Change the bar chart to a scatter plot" value="${feedbackText}" />
+                        <button id="sim-refine-btn" class="sim-btn-secondary">Submit Patch Intent</button>
+                    </div>
+                </div>
+            ` : ''}
+        `;
+
+        // Bind Listeners
+        const presetSelect = document.getElementById('sim-preset-select');
+        if (presetSelect) {
+            presetSelect.addEventListener('change', (e) => {
+                currentPresetKey = e.target.value;
+                currentStage = 0;
+                isRefined = false;
+                feedbackText = '';
+                render();
+            });
+        }
+
+        const triggerBtn = document.getElementById('sim-trigger-btn');
+        if (triggerBtn) {
+            triggerBtn.addEventListener('click', () => {
+                isRefined = false;
+                feedbackText = '';
+                runSimulationLoop();
+            });
+        }
+
+        const refineInput = document.getElementById('sim-refine-input');
+        if (refineInput) {
+            refineInput.addEventListener('input', (e) => {
+                feedbackText = e.target.value;
+            });
+            refineInput.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') handleRefinement();
+            });
+        }
+
+        const refineBtn = document.getElementById('sim-refine-btn');
+        if (refineBtn) {
+            refineBtn.addEventListener('click', handleRefinement);
+        }
+    }
+
+    function renderPanelBody(p) {
+        if (currentStage === 0) {
+            return `<div style="display:flex;align-items:center;justify-content:center;height:140px;color:#94a3b8;font-style:italic;">Select a context preset and trigger the sequential orchestration pipeline above.</div>`;
+        }
+        if (currentStage === 1) {
+            return `<pre class="sim-json-view">${JSON.stringify({ reasoning: p.strategy.reasoning, chart_goals: p.strategy.goals }, null, 2)}</pre>`;
+        }
+        if (currentStage === 2) {
+            return `<pre class="sim-json-view">${JSON.stringify({ sql_queries_executed: p.data.sql, total_execution_time_ms: p.data.timeMs, returned_row_counts: [450, 4, 12] }, null, 2)}</pre>`;
+        }
+        if (currentStage === 3) {
+            return `<pre class="sim-json-view">${JSON.stringify({ schema_standard: "https://vega.github.io/schema/vega-lite/v6.json", generated_specs: p.viz.specs }, null, 2)}</pre>`;
+        }
+        if (currentStage === 4) {
+            // Render beautiful interactive layout grid
+            let items = p.layout;
+            if (isRefined) {
+                // Apply visual patch override based on feedback
+                items = items.map(item => {
+                    if (item.i === 'c2' && feedbackText.toLowerCase().includes('scatter')) {
+                        return { ...item, title: "Sales by Region (Refined)", desc: "Swapped encoding channel to point marks", visMark: "⏺️ Scatter Covariance Rendered" };
+                    }
+                    return item;
+                });
+            }
+
+            return `
+                <div class="sim-preview-grid">
+                    ${items.map(item => `
+                        <div class="sim-preview-chart" style="grid-column: span ${item.w};">
+                            <div class="sim-chart-title">${item.title}</div>
+                            <div class="sim-chart-desc">${item.desc}</div>
+                            <div class="sim-chart-vis">${item.visMark}</div>
+                        </div>
+                    `).join('')}
+                </div>
+                ${isRefined ? `
+                    <div style="margin-top: 1rem; padding: 0.5rem; background-color: #eff6ff; border-left: 3px solid #2563eb; font-size: 0.75rem; color: #1e293b;">
+                        <strong>Intent Classifier Output:</strong> Emitted <code>RefinementAction(action_type='change_chart_type', target_chart_id='c2')</code>. State payload updated without executing redundant data queries.
+                    </div>
+                ` : ''}
+            `;
+        }
+    }
+
+    function runSimulationLoop() {
+        isSimulating = true;
+        currentStage = 1;
+        render();
+
+        setTimeout(() => {
+            currentStage = 2;
+            render();
+            setTimeout(() => {
+                currentStage = 3;
+                render();
+                setTimeout(() => {
+                    currentStage = 4;
+                    isSimulating = false;
+                    render();
+                }, 900);
+            }, 900);
+        }, 900);
+    }
+
+    function handleRefinement() {
+        if (!feedbackText.trim()) return;
+        isRefined = true;
+        render();
+    }
+
+    // Initial render
+    render();
+}
+
+</script>
+</body>
+
+</html>

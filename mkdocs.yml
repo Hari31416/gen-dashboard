@@ -97,6 +97,8 @@ nav:
       - Environments: deployment/environments.md
       - CI/CD & Linting: deployment/ci-cd.md
       - Infrastructure Recommendations: deployment/infrastructure.md
+  - Interactive Articles:
+      - Dashboard Agents & Charts: interactive-articles/dashboard-agents-and-charts/index.html
   - Decisions:
       - Architectural Decisions: decisions/architectural-decisions.md
   - Glossary: glossary.md
