@@ -3,7 +3,7 @@
 A powerful, agentic AI-powered dashboard generator that converts natural language requests into fully functional, interactive data dashboards using a multi-agent orchestration pipeline.
 
 > [!TIP]
-> **New to the project?** Check out our comprehensive [Project Wiki](wiki/index.md) for detailed architecture, API docs, and customization guides.
+> **New to the project?** Check out our comprehensive [Project Documentation](docs/index.md) for detailed architecture, API docs, and customization guides.
 
 ## Architecture Overview
 
@@ -129,10 +129,12 @@ sequenceDiagram
     make start # Start Backend (8000) and Frontend (5173)
     ```
 
-[See Full Deployment Guide](wiki/Deployment.md)
+## Documentation Wiki
 
-## Wiki Directory
+Explore our complete implementation-aware MkDocs wiki inside the `docs/` folder:
 
-- **Core**: [Home](wiki/Home.md) | [Architecture](wiki/Architecture.md) | [Deployment](wiki/Deployment.md)
-- **Backend**: [Overview](wiki/backend/Overview.md) | [Agents](wiki/backend/Agents.md) | [API Reference](wiki/backend/API-Reference.md)
-- **Frontend**: [Overview](wiki/frontend/Overview.md) | [Components](wiki/frontend/Components.md) | [Viz Engine](wiki/frontend/Viz-Engine.md)
+- **Foundation**: [Overview & Architecture](docs/architecture/overview.md) | [Data Flows](docs/architecture/data-flow.md) | [Glossary](docs/glossary.md)
+- **Backend Internals**: [Core Internals](docs/backend/README.md) | [Routing](docs/backend/routing.md) | [LangGraph & Services](docs/backend/services.md)
+- **Frontend Architecture**: [Overview](docs/frontend/README.md) | [State & Streams](docs/frontend/state-management.md) | [Components](docs/frontend/components.md)
+- **API Reference**: [Endpoints](docs/api-reference/backend-endpoints.md) | [Examples](docs/api-reference/request-response-examples.md)
+- **Developer Guides**: [Local Setup](docs/development/local-setup.md) | [Docker Infrastructure](docs/development/docker.md) | [Debugging](docs/development/debugging.md)

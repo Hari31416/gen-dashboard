@@ -46,22 +46,57 @@ markdown_extensions:
       custom_checkbox: true
   - attr_list
 
-nav:
-  - Welcome: index.md
-  - Guide:
-    - Home: Home.md
-    - Architecture: Architecture.md
-    - Deployment: Deployment.md
-  - Backend:
-    - Overview: backend/Overview.md
-    - Agents: backend/Agents.md
-    - API Reference: backend/API-Reference.md
-    - Database: backend/Database.md
-  - Frontend:
-    - Overview: frontend/Overview.md
-    - Components: frontend/Components.md
-    - Viz Engine: frontend/Viz-Engine.md
-    - Customization: frontend/Customization.md
-
-docs_dir: wiki
+docs_dir: docs
 site_dir: site
+
+nav:
+  - Home: index.md
+  - Architecture:
+      - Overview: architecture/overview.md
+      - Backend Architecture: architecture/backend-architecture.md
+      - Frontend Architecture: architecture/frontend-architecture.md
+      - Data Flow: architecture/data-flow.md
+  - Backend Internals:
+      - Overview: backend/README.md
+      - App Initialization: backend/app-initialization.md
+      - Routing: backend/routing.md
+      - Dependency Injection: backend/dependency-injection.md
+      - Middleware: backend/middleware.md
+      - Models: backend/models.md
+      - Schemas: backend/schemas.md
+      - Services: backend/services.md
+      - Repositories: backend/repositories.md
+      - Database Access: backend/database.md
+      - Background Tasks: backend/background-tasks.md
+      - Authentication: backend/authentication.md
+      - Authorization: backend/authorization.md
+      - Configuration: backend/configuration.md
+      - Error Handling: backend/error-handling.md
+      - Logging: backend/logging.md
+      - Testing: backend/testing.md
+  - Frontend Internals:
+      - Overview: frontend/README.md
+      - Project Structure: frontend/project-structure.md
+      - Routing: frontend/routing.md
+      - State Management: frontend/state-management.md
+      - API Layer: frontend/api-layer.md
+      - Components: frontend/components.md
+      - Authentication: frontend/authentication.md
+      - Testing: frontend/testing.md
+  - API Reference:
+      - Backend Endpoints: api-reference/backend-endpoints.md
+      - Request & Response Examples: api-reference/request-response-examples.md
+  - Development Guides:
+      - Local Setup: development/local-setup.md
+      - Environment Variables: development/environment-variables.md
+      - Docker Infrastructure: development/docker.md
+      - Migrations Strategy: development/migrations.md
+      - Debugging Strategies: development/debugging.md
+      - Common Tasks: development/common-tasks.md
+  - Deployment & Infrastructure:
+      - Environments: deployment/environments.md
+      - CI/CD & Linting: deployment/ci-cd.md
+      - Infrastructure Recommendations: deployment/infrastructure.md
+  - Decisions:
+      - Architectural Decisions: decisions/architectural-decisions.md
+  - Glossary: glossary.md

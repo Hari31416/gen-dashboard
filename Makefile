@@ -69,14 +69,14 @@ frontend-stop:
 	@echo "Stopping frontend on port $(FRONTEND_PORT)..."
 	@-lsof -ti:$(FRONTEND_PORT) | xargs kill -9 2>/dev/null || echo "Frontend not running"
 
-wiki-setup:
+docs-setup:
 	@echo "Installing MkDocs dependencies..."
-	cd $(BACKEND_DIR) && uv pip install mkdocs-material
+	cd $(BACKEND_DIR) && uv sync --group docs
 
-wiki-serve:
-	@echo "Serving wiki documentation..."
-	cd $(BACKEND_DIR) && uv run mkdocs serve --config-file ../mkdocs.yml
+docs-serve:
+	@echo "Serving docs documentation..."
+	cd $(BACKEND_DIR) && uv run mkdocs serve -f ../mkdocs.yml
 
-wiki-build:
-	@echo "Building static wiki site..."
-	cd $(BACKEND_DIR) && uv run mkdocs build --config-file ../mkdocs.yml
+docs-build:
+	@echo "Building static docs site..."
+	cd $(BACKEND_DIR) && uv run mkdocs build -f ../mkdocs.yml
