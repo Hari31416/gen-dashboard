@@ -38,15 +38,8 @@ jobs:
         with:
           python-version: "3.13"
 
-      - name: Install Documentation Dependencies
-        run: |
-          cd backend
-          uv sync --only-group docs --python 3.13
-
       - name: Build MkDocs Site
-        run: |
-          cd backend
-          uv run mkdocs build -f ../mkdocs.yml
+        run: uvx --from mkdocs-material mkdocs build
 
       - name: Setup GitHub Pages configuration
         uses: actions/configure-pages@v5
