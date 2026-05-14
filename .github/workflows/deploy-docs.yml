@@ -36,12 +36,12 @@ jobs:
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
+          python-version: "3.13"
 
       - name: Install Documentation Dependencies
         run: |
           cd backend
-          uv sync --only-group docs
+          uv sync --only-group docs --python 3.13
 
       - name: Build MkDocs Site
         run: |
